@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>High Noon Payout Patterns</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rye&family=Alegreya+Sans:wght@400;500;700;800&family=Special+Elite&display=swap">
+<style>
+/* Layout: a saloon notice board. Intro and pick on top, then ten numbered pattern cards in a wrapping grid. Same dusk look as the game. */
+:root {
+  color-scheme: dark;
+  --ink: #160f0a;
+  --wood: #2c1d12;
+  --wood-hi: #4a3120;
+  --paper: #ecdcb8;
+  --paper-ink: #2d1e12;
+  --paper-dim: #7a6247;
+  --brass: #d6a046;
+  --brass-hi: #f0c46c;
+  --blood: #b83a2c;
+  --sage: #8fae75;
+  --dust: #b39a7b;
+  --text: #f3e6cc;
+  --f-display: "Rye", "Rockwell", Georgia, serif;
+  --f-body: "Alegreya Sans", "Trebuchet MS", system-ui, sans-serif;
+  --f-type: "Special Elite", "Courier New", monospace;
+}
+* { box-sizing: border-box; }
+body { background: radial-gradient(120% 50% at 50% -5%, #5a3018 0%, transparent 60%), var(--ink); color: var(--text); font: 16px/1.5 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 56px; }
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 28px; }
+header { display: grid; gap: 10px; text-align: center; justify-items: center; }
+.eyebrow { font: 700 12px/1 var(--f-body); letter-spacing: 0.18em; text-transform: uppercase; color: var(--dust); }
+h1 { margin: 0; font: 400 clamp(30px, 6vw, 52px)/1.05 var(--f-display); color: var(--brass-hi); text-wrap: balance; text-shadow: 0 2px 0 #0008; }
+.lede { margin: 0; max-width: 62ch; color: var(--text); text-wrap: pretty; }
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
+.pick { background: var(--paper); color: var(--paper-ink); border-radius: 6px; padding: 18px 20px; box-shadow: inset 0 0 0 2px var(--brass), 0 8px 24px #0008; display: grid; gap: 8px; align-content: start; }
+.pick h2 { margin: 0; font: 400 22px/1.15 var(--f-display); color: var(--blood); }
+.pick p { margin: 0; }
+.howto { border: 1px solid var(--wood-hi); border-radius: 6px; padding: 18px 20px; display: grid; gap: 8px; align-content: start; background: var(--wood); }
+.howto h2 { margin: 0; font: 700 13px/1.2 var(--f-body); letter-spacing: 0.14em; text-transform: uppercase; color: var(--brass-hi); }
+.howto p { margin: 0; color: var(--text); }
+.howto b { color: var(--brass-hi); }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 18px; }
+.card { background: var(--wood); border: 1px solid var(--wood-hi); border-radius: 8px; padding: 16px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.card.mine { border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass), 0 0 24px #d6a04633; }
+.head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; align-items: baseline; }
+.num { font: 400 30px/1 var(--f-display); color: var(--brass); grid-row: span 2; }
+.card h3 { margin: 0; font: 800 20px/1.15 var(--f-body); color: var(--text); text-wrap: balance; }
+.role { font: 700 11px/1 var(--f-body); letter-spacing: 0.12em; text-transform: uppercase; color: var(--dust); display: flex; gap: 8px; flex-wrap: wrap; }
+.role .tag { padding: 3px 7px; border-radius: 999px; border: 1px solid currentColor; }
+.role .main { color: var(--sage); } .role .extra { color: var(--brass-hi); } .role .myp { color: var(--ink); background: var(--brass-hi); border-color: var(--brass-hi); }
+.rule { margin: 0; font-size: 17px; color: var(--text); }
+.board { position: relative; width: 100%; max-width: 280px; aspect-ratio: 1; margin: 2px auto 0; background: var(--paper); border-radius: 6px; padding: 4%; box-shadow: inset 0 0 0 2px var(--brass), 0 6px 16px #0009; }
+.gridc { position: absolute; inset: 4%; display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(5, 1fr); gap: 3%; }
+.cell { border-radius: 4px; background: #f6ead0; display: grid; place-items: center; box-shadow: inset 0 0 0 1px #c9b48a; }
+.cell svg { width: 88%; height: 88%; }
+.board.has-hl .cell:not(.on) svg { opacity: 0.28; filter: grayscale(0.8); }
+.board.has-hl .cell:not(.on) { background: #eadcbc; }
+.cell.on { background: #fff4d6; box-shadow: inset 0 0 0 2px var(--blood); }
+.cell.on2 { box-shadow: inset 0 0 0 2px #3d6b78; }
+.cell.band { background: #fbe9b7; }
+.overlay { position: absolute; inset: 4%; width: 92%; height: 92%; pointer-events: none; overflow: visible; }
+.caption { margin: -4px 0 0; text-align: center; font: 15px/1.35 var(--f-type); color: var(--dust); }
+.stats { display: grid; gap: 0; margin: 0; border-top: 1px solid var(--wood-hi); font-variant-numeric: tabular-nums; }
+.stats div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--wood-hi); }
+.stats dt { color: var(--dust); font-size: 14px; }
+.stats dd { margin: 0; font-weight: 800; color: var(--text); text-align: right; }
+.dots { letter-spacing: 2px; color: var(--brass-hi); }
+.dots i { font-style: normal; color: var(--wood-hi); }
+.pc { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 15px; }
+.pc li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 6px; }
+.pc .p::before { content: "+"; color: var(--sage); font-weight: 800; }
+.pc .c::before { content: "−"; color: #e07a6a; font-weight: 800; }
+.today { font-size: 15px; color: var(--dust); text-align: center; margin: 0; }
+.today b { color: var(--text); }
+footer { color: var(--dust); font-size: 14px; text-align: center; max-width: 70ch; margin: 0 auto; }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">High Noon Reels · base game</span>
+    <h1>Ten ways to win on the 5×5 grid</h1>
+    <p class="lede">Each card shows one payout pattern on a sample spin, with the winning symbols lit and everything else faded. The numbers come from 200,000 simulated spins on today's reels.</p>
+  </header>
+
+  <section class="notes">
+    <div class="pick">
+      <h2>My pick: #1, with #8 and #9 as extras</h2>
+      <p><b>Lines in any direction</b> as the main rule. People already know it from tic-tac-toe and Connect Four, the game can draw every win as a line, and it pays on about 7 of 10 spins before any tuning. A full 5-symbol line comes about once in 90 spins, which gives a clear jackpot moment.</p>
+      <p>On top of that, <b>squares</b> and <b>crosses</b> could pay a bonus whenever they show up. Runner-up for the main rule: <b>#5 Chains</b>.</p>
+    </div>
+    <div class="howto">
+      <h2>How to read the cards</h2>
+      <p><b>Pays on</b> is how often at least one win shows up on a spin with today's symbols. Changing how many kinds of symbols there are, or stacking symbols on the reels, moves this number a lot. So most main rules can be tuned to pay on about 6 of 7 spins.</p>
+      <p><b>Main rule</b> patterns can carry the game alone. <b>Extra</b> patterns are too rare for that, but make good bonus wins on top.</p>
+      <p>The Wanted poster still counts as any symbol in every pattern.</p>
+    </div>
+  </section>
+
+  <p class="today">For comparison, today's rule is <b>6 or more of a kind anywhere</b>. It pays on 85% of spins, but the winning symbols don't form a shape you can see.</p>
+
+  <section class="cards" id="cards" aria-label="Payout patterns"></section>
+
+  <footer>Tell me the numbers you like (for example "1 and 8") and I'll build it into the game and rebalance the pays.</footer>
+</div>
+
+<script>
+// ---------- Art (placeholder SVG) ----------
+const ART = {
+  W: `<svg viewBox="0 0 100 100"><rect x="14" y="8" width="72" height="84" rx="3" fill="#e8c98d" stroke="#6b4422" stroke-width="3"/><text x="50" y="30" text-anchor="middle" font-family="Rye,serif" font-size="15" fill="#3a2010">WANTED</text><circle cx="50" cy="52" r="13" fill="#3a2010"/><path d="M33 46h34l-5-5H38z" fill="#3a2010"/><text x="50" y="84" text-anchor="middle" font-family="Rye,serif" font-size="16" fill="#b83a2c">WILD</text></svg>`,
+  S: `<svg viewBox="0 0 100 100"><circle cx="50" cy="48" r="38" fill="#b83a2c"/><circle cx="50" cy="48" r="28" fill="#f6ead0"/><circle cx="50" cy="48" r="18" fill="#b83a2c"/><circle cx="50" cy="48" r="8" fill="#f6ead0"/><rect x="12" y="74" width="76" height="20" rx="4" fill="#2d1e12"/><text x="50" y="89" text-anchor="middle" font-family="Rye,serif" font-size="15" fill="#f0c46c">DUEL</text></svg>`,
+  STAR: `<svg viewBox="0 0 100 100"><g fill="#d6a046" stroke="#7a5320" stroke-width="2.5"><polygon points="50,6 61,31 89,28 72,50 89,72 61,69 50,94 39,69 11,72 28,50 11,28 39,31"/></g><g fill="#d6a046" stroke="#7a5320" stroke-width="2"><circle cx="50" cy="7" r="5"/><circle cx="89" cy="28" r="5"/><circle cx="89" cy="72" r="5"/><circle cx="50" cy="93" r="5"/><circle cx="11" cy="72" r="5"/><circle cx="11" cy="28" r="5"/></g><circle cx="50" cy="50" r="15" fill="#f0c46c" stroke="#7a5320" stroke-width="2"/><text x="50" y="56" text-anchor="middle" font-family="Rye,serif" font-size="13" fill="#7a5320">LAW</text></svg>`,
+  BAG: `<svg viewBox="0 0 100 100"><path d="M38 22 L62 22 L56 32 C80 42 86 70 78 82 C70 94 30 94 22 82 C14 70 20 42 44 32 Z" fill="#a9784a" stroke="#5b3a1d" stroke-width="3"/><path d="M40 30 Q50 36 60 30" stroke="#5b3a1d" stroke-width="4" fill="none"/><text x="50" y="78" text-anchor="middle" font-family="Rye,serif" font-size="34" fill="#f0c46c" stroke="#5b3a1d" stroke-width="1">$</text></svg>`,
+  SHOE: `<svg viewBox="0 0 100 100"><path d="M28 86 L22 50 C18 24 82 24 78 50 L72 86" fill="none" stroke="#7a7f86" stroke-width="16" stroke-linecap="round"/><path d="M28 86 L22 50 C18 24 82 24 78 50 L72 86" fill="none" stroke="#b9bec4" stroke-width="8" stroke-linecap="round"/><g fill="#3d4247"><circle cx="24" cy="70" r="3"/><circle cx="23" cy="52" r="3"/><circle cx="76" cy="70" r="3"/><circle cx="77" cy="52" r="3"/><circle cx="35" cy="34" r="3"/><circle cx="65" cy="34" r="3"/></g></svg>`,
+  CACTUS: `<svg viewBox="0 0 100 100"><g fill="#5e8a45" stroke="#2f4a20" stroke-width="3"><rect x="40" y="10" width="20" height="80" rx="10"/><path d="M40 58 H28 A8 8 0 0 1 20 50 V34 A6 6 0 0 1 32 34 V46 H40"/><path d="M60 46 H70 V26 A6 6 0 0 1 82 26 V42 A8 8 0 0 1 74 50 H60"/></g><rect x="22" y="88" width="56" height="6" rx="3" fill="#c98a4b"/></svg>`,
+  A: card('A', '#b83a2c'), K: card('K', '#2d1e12'), Q: card('Q', '#3d6b78'), J: card('J', '#5e8a45'),
+};
+function card(l, c) { return `<svg viewBox="0 0 100 100"><text x="50" y="72" text-anchor="middle" font-family="Rye,serif" font-size="62" fill="${c}" stroke="#0003" stroke-width="1">${l}</text></svg>`; }
+
+const CODE = { '*': 'STAR', B: 'BAG', H: 'SHOE', C: 'CACTUS', A: 'A', K: 'K', Q: 'Q', J: 'J', W: 'W' };
+// the 10 classic paylines, as the row on each reel
+const LINES10 = [[0,0,0,0,0],[1,1,1,1,1],[2,2,2,2,2],[3,3,3,3,3],[4,4,4,4,4],[0,1,2,1,0],[4,3,2,3,4],[1,2,3,2,1],[3,2,1,2,3],[2,1,0,1,2]];
+const P = [
+  { name: 'Lines in any direction', role: 'main', mine: true,
+    rule: '3 or more of the same symbol in a straight line: across, down or diagonal. Longer lines pay more.',
+    grid: ['QACJH', 'KQBAJ', 'CJWHA', 'AHHQB', 'JKKKC'],
+    lines: [[[0,0],[1,1],[2,2],[3,3]], [[1,4],[2,4],[3,4]]],
+    caption: 'A diagonal of 4 queens (the poster fills in) and 3 kings across',
+    stats: [['Pays on', '69% of spins'], ['Line of 4', '1 in 8 spins'], ['Full line of 5', '1 in 91 spins']], easy: 3,
+    pro: 'Everyone knows it. Each win is drawn as a line, so it is obvious what paid.', con: 'Many lines per spin can get busy. Draw them one at a time.' },
+  { name: 'Side by side', role: 'main',
+    rule: '3 or more of the same symbol next to each other in a row, anywhere along the row.',
+    grid: ['AQJKH', 'KJABQ', 'JCCCC', 'QAKJA', 'HKQAJ'],
+    lines: [[[1,2],[2,2],[3,2],[4,2]]],
+    caption: '4 cactuses side by side',
+    stats: [['Pays on', '32% of spins'], ['4 side by side', '1 in 22 spins'], ['Full row of 5', '1 in 220 spins']], easy: 3,
+    pro: 'The simplest rule there is. Only one direction to scan.', con: 'Pays too rarely as is. Needs stacked symbols or fewer kinds of symbols.' },
+  { name: 'Classic paylines', role: 'main',
+    rule: '3 or more of the same symbol along one of 10 drawn lines, starting from the left reel.',
+    grid: ['*KAJQ', 'J*QAK', 'AJ*KH', 'KQJCA', 'CAKQJ'], ghost: true,
+    lines: [[[0,0],[1,1],[2,2]]], lineTail: [[2,2],[3,1],[4,0]],
+    caption: '3 sheriff stars on the V line (all 10 lines shown faintly)',
+    stats: [['Pays on', '25% of spins'], ['Full line of 5', '1 in 113 spins'], ['Lines to learn', '10']], easy: 2,
+    pro: 'The classic slot feel. Easy to show a line map next to the reels.', con: 'You have to know the lines. Same symbols off a line pay nothing.' },
+  { name: 'Clusters', role: 'main',
+    rule: '5 or more of the same symbol touching along their sides (up, down, left, right). Bigger groups pay more.',
+    grid: ['AKQJC', 'HHHAK', 'JQHKA', 'KAHHQ', 'QJCAJ'],
+    on: [[0,1],[1,1],[2,1],[2,2],[2,3],[3,3]], outline: true,
+    caption: 'A group of 6 horseshoes, outlined',
+    stats: [['Pays on', '19% (43% if 4 is enough)'], ['Group of 8+', '1 in 83 spins'], ['Group of 12+', '1 in 5,100 spins']], easy: 2,
+    pro: 'Very visual: winning groups glow as one blob. Big groups feel huge.', con: 'Rare wins as is. Needs tuning or a minimum of 4.' },
+  { name: 'Chains', role: 'main',
+    rule: 'Like clusters, but corners count as touching too. 5 or more linked symbols pay.',
+    grid: ['KAQCA', 'QKAHJ', 'AQCJC', 'HJJAK', 'JCAQH'],
+    on: [[0,4],[1,3],[2,3],[3,2],[4,1]], chain: [[[0,4],[1,3]], [[1,3],[2,3]], [[2,3],[3,2]], [[3,2],[4,1]]],
+    caption: '5 jacks linked corner to corner',
+    stats: [['Pays on', '50% (77% if 4 is enough)'], ['Chain of 8+', '1 in 14 spins'], ['Chain of 12+', '1 in 720 spins']], easy: 2,
+    pro: 'Pays often and draws nicely as a snake through the grid.', con: 'Diagonal links are a little harder to spot than straight lines.' },
+  { name: 'Left to right', role: 'main',
+    rule: 'The same symbol on neighbouring reels, starting from the left reel. Anywhere on each reel counts. More reels pay more.',
+    grid: ['KAQAC', 'QJCBH', 'JQHCK', 'ABJHQ', 'HCAKB'],
+    on: [[0,3],[1,0],[2,4],[3,0]], on2: [[0,1],[1,2],[2,0],[0,2],[1,1],[2,3]], bands: [0,1,2,3],
+    caption: 'Aces on reels 1 to 4. Queens and jacks reach 3 reels too (blue)',
+    stats: [['Pays on', '80% of spins'], ['All 5 reels', '1 in 2.5 spins'], ['Wins at once', 'often 2 or 3']], easy: 1,
+    pro: 'Pays very often without any tuning.', con: 'Hard to see what paid, and 5-reel wins are too common to feel special.' },
+  { name: 'Stacks', role: 'main',
+    rule: '3 or more of the same symbol stacked on top of each other on one reel. A full reel of 5 is the jackpot.',
+    grid: ['KQBJA', 'AJBCK', 'JKBQH', 'QABKJ', 'CHJAQ'],
+    lines: [[[2,0],[2,1],[2,2],[2,3]]],
+    caption: '4 gold sacks stacked on the middle reel',
+    stats: [['Pays on', '32% of spins'], ['Full reel of 5', '1 in 215 spins'], ['Where to look', 'one reel at a time']], easy: 3,
+    pro: 'Easy to see as each reel stops, which builds suspense reel by reel.', con: 'Pays too rarely as is. Works best with stacked symbols on the reel strips.' },
+  { name: 'Squares', role: 'extra', mine: true,
+    rule: 'A 2 × 2 square of the same symbol. A 3 × 3 square would be a jackpot.',
+    grid: ['AQJCH', 'JKKAQ', 'QKKJA', 'CAHQK', 'HJAKC'],
+    on: [[1,1],[2,1],[1,2],[2,2]], box: [1,1,2,2],
+    caption: 'A square of 4 kings',
+    stats: [['Pays on', '1 in 13 spins'], ['3 × 3 square', 'rarer than 1 in 200,000'], ['Best as', 'a bonus on top']], easy: 3,
+    pro: 'Instantly readable and satisfying when it lands.', con: 'Too rare to be the only rule.' },
+  { name: 'Crosses', role: 'extra', mine: true,
+    rule: 'A symbol with the same symbol on all four sides, making a plus sign of 5.',
+    grid: ['AKQJH', 'JQCAK', 'KCCWQ', 'QACKJ', 'HJKQA'],
+    lines: [[[2,1],[2,3]], [[1,2],[3,2]]],
+    caption: 'A cross of cactuses (the poster fills one arm)',
+    stats: [['Pays on', '1 in 127 spins'], ['Shape', '5 symbols, always a plus'], ['Best as', 'a bonus on top']], easy: 3,
+    pro: 'A strong western touch: it looks like a sheriff’s cross on the board.', con: 'Rare, so it can only be an extra.' },
+  { name: 'Wanted shapes', role: 'extra',
+    rule: 'A small card of special shapes that pay big: all four corners, a big V, the outer frame, a big X.',
+    grid: ['*AQK*', 'KJCAQ', 'AQHJK', 'JKAQC', '*CJA*'],
+    on: [[0,0],[4,0],[0,4],[4,4]], corners: true,
+    caption: 'Sheriff stars in all four corners',
+    stats: [['Four corners', '1 in 205 spins'], ['Big V', '1 in 545 spins'], ['Big X or frame', 'not seen in 200,000']], easy: 2,
+    pro: 'Gives rare, memorable jackpot moments, like bingo.', con: 'Players need the shape card shown somewhere to know what to hope for.' },
+];
+const C = (c, r) => [c * 100 + 50, r * 100 + 50];
+const pts = list => list.map(([c, r]) => C(c, r).join(',')).join(' ');
+function overlay(p) {
+  let s = '';
+  if (p.ghost) s += LINES10.map(L => `<polyline points="${pts(L.map((r, c) => [c, r]))}" fill="none" stroke="#2d1e12" stroke-opacity=".14" stroke-width="7" stroke-linejoin="round"/>`).join('');
+  if (p.lineTail) s += `<polyline points="${pts(p.lineTail)}" fill="none" stroke="#b83a2c" stroke-opacity=".35" stroke-width="9" stroke-dasharray="4 14" stroke-linecap="round"/>`;
+  for (const l of p.lines || []) s += `<polyline points="${pts(l)}" fill="none" stroke="#b83a2c" stroke-opacity=".55" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>`;
+  for (const [a, b] of p.chain || []) s += `<line x1="${C(...a)[0]}" y1="${C(...a)[1]}" x2="${C(...b)[0]}" y2="${C(...b)[1]}" stroke="#b83a2c" stroke-opacity=".55" stroke-width="9" stroke-linecap="round"/>`;
+  if (p.box) { const [c0, r0, c1, r1] = p.box; s += `<rect x="${c0 * 100 + 4}" y="${r0 * 100 + 4}" width="${(c1 - c0 + 1) * 100 - 8}" height="${(r1 - r0 + 1) * 100 - 8}" rx="14" fill="none" stroke="#b83a2c" stroke-width="10"/>`; }
+  if (p.outline) { // trace the outer edge of the group
+    const set = new Set(p.on.map(([c, r]) => c + ',' + r)), has = (c, r) => set.has(c + ',' + r);
+    for (const [c, r] of p.on) { const x = c * 100, y = r * 100;
+      if (!has(c, r - 1)) s += `<line x1="${x}" y1="${y}" x2="${x + 100}" y2="${y}" class="ol"/>`;
+      if (!has(c, r + 1)) s += `<line x1="${x}" y1="${y + 100}" x2="${x + 100}" y2="${y + 100}" class="ol"/>`;
+      if (!has(c - 1, r)) s += `<line x1="${x}" y1="${y}" x2="${x}" y2="${y + 100}" class="ol"/>`;
+      if (!has(c + 1, r)) s += `<line x1="${x + 100}" y1="${y}" x2="${x + 100}" y2="${y + 100}" class="ol"/>`; }
+    s = `<g stroke="#b83a2c" stroke-width="9" stroke-linecap="round">${s.replaceAll(' class="ol"', '')}</g>`;
+  }
+  if (p.corners) s += `<rect x="6" y="6" width="488" height="488" rx="16" fill="none" stroke="#b83a2c" stroke-width="6" stroke-dasharray="20 18"/>`;
+  return `<svg class="overlay" viewBox="0 0 500 500" aria-hidden="true">${s}</svg>`;
+}
+function onCells(p) {
+  const set = new Set();
+  for (const l of p.lines || []) for (const [c, r] of l) set.add(c + ',' + r);
+  for (const [c, r] of p.on || []) set.add(c + ',' + r);
+  if (p.box) for (let c = p.box[0]; c <= p.box[2]; c++) for (let r = p.box[1]; r <= p.box[3]; r++) set.add(c + ',' + r);
+  if (p.lines && p.name === 'Crosses') set.add('2,2');
+  return set;
+}
+function board(p) {
+  const on = onCells(p), on2 = new Set((p.on2 || []).map(([c, r]) => c + ',' + r)), bands = new Set(p.bands || []);
+  let cells = '';
+  for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) {
+    const k = CODE[p.grid[r][c]], key = c + ',' + r;
+    const cls = on.has(key) ? ' on' : on2.has(key) ? ' on on2' : bands.has(c) ? ' band' : '';
+    cells += `<div class="cell${cls}">${ART[k]}</div>`;
+  }
+  return `<div class="board has-hl" role="img" aria-label="${p.caption}"><div class="gridc">${cells}</div>${overlay(p)}</div>`;
+}
+const dots = n => `<span class="dots" aria-label="${n} of 3">${'●'.repeat(n)}<i>${'●'.repeat(3 - n)}</i></span>`;
+document.getElementById('cards').innerHTML = P.map((p, i) => `
+  <article class="card${p.mine ? ' mine' : ''}">
+    <div class="head"><span class="num">${i + 1}</span><h3>${p.name}</h3>
+      <div class="role"><span class="tag ${p.role}">${p.role === 'main' ? 'Main rule' : 'Extra'}</span>${p.mine ? '<span class="tag myp">My pick</span>' : ''}</div></div>
+    <p class="rule">${p.rule}</p>
+    ${board(p)}
+    <p class="caption">${p.caption}</p>
+    <dl class="stats">${p.stats.map(([a, b]) => `<div><dt>${a}</dt><dd>${b}</dd></div>`).join('')}<div><dt>Easy to read</dt><dd>${dots(p.easy)}</dd></div></dl>
+    <ul class="pc"><li class="p"><span>${p.pro}</span></li><li class="c"><span>${p.con}</span></li></ul>
+  </article>`).join('');
+</script>

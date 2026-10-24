@@ -1,0 +1,2421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>High Noon Reels</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rye&family=Alegreya+Sans:wght@400;500;700;800&family=Special+Elite&display=swap">
+<style>
+/* Layout: one centered cabinet; the reels swap out for a duel arena when the bonus hits. Single dusk-saloon look. */
+:root {
+  color-scheme: dark;
+  --ink: #160f0a;
+  --ink-2: #241810;
+  --wood: #3b2717;
+  --wood-hi: #573a22;
+  --paper: #ecdcb8;
+  --paper-ink: #2d1e12;
+  --brass: #d6a046;
+  --brass-hi: #f0c46c;
+  --blood: #b83a2c;
+  --sage: #8fae75;
+  --dust: #b39a7b;
+  --text: #f3e6cc;
+  --f-display: "Rye", "Rockwell", "Georgia", serif;
+  --f-body: "Alegreya Sans", "Trebuchet MS", system-ui, sans-serif;
+  --f-type: "Special Elite", "Courier New", monospace;
+  --cell: min(100px, calc((100vw - 114px) / 5));
+}
+[hidden] { display: none !important; }
+html, body { min-height: 100%; }
+body {
+  background:
+    radial-gradient(120% 60% at 50% -10%, #6b3a1a 0%, transparent 60%),
+    linear-gradient(180deg, #2b1a10 0%, var(--ink) 55%);
+  background-color: var(--ink);
+  color: var(--text);
+  font-family: var(--f-body);
+  font-size: 16px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+.wrap { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+header { text-align: center; display: grid; gap: 4px; }
+h1 { font-family: var(--f-display); font-weight: 400; font-size: clamp(30px, 8vw, 46px); margin: 0; color: var(--brass-hi); letter-spacing: 0.02em; text-shadow: 0 3px 0 #000a; text-wrap: balance; }
+.tag { margin: 0; color: var(--dust); font-size: 15px; }
+
+.cabinet {
+  background: linear-gradient(180deg, var(--wood-hi), var(--wood));
+  border: 3px solid #1d120a;
+  box-shadow: inset 0 0 0 2px #7a5634, 0 18px 40px #0009;
+  border-radius: 14px;
+  padding: 16px;
+  display: grid; gap: 14px;
+}
+.meters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.meter { background: var(--ink); border-radius: 8px; padding: 6px 10px; text-align: center; box-shadow: inset 0 2px 6px #000c; min-width: 0; }
+.meter span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dust); }
+.meter b { font-family: var(--f-type); font-weight: 400; font-size: 20px; color: var(--brass-hi); font-variant-numeric: tabular-nums; }
+
+.reels {
+  position: relative;
+  display: grid; grid-template-columns: repeat(5, var(--cell)); gap: 6px;
+  justify-content: center;
+  background: var(--paper); border-radius: 10px; padding: 8px;
+  box-shadow: inset 0 0 0 3px var(--brass), inset 0 6px 14px #0006;
+}
+.reel { height: calc(var(--cell) * 5); overflow: hidden; border-radius: 6px; background: #f6ead0; position: relative; }
+.reel::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, #0000004a, transparent 22%, transparent 78%, #0000004a); }
+.strip { display: flex; flex-direction: column; will-change: transform; }
+.cell { width: var(--cell); height: var(--cell); display: grid; place-items: center; position: relative; }
+.cell svg { width: 86%; height: 86%; }
+.cell.win { animation: pulse 0.7s ease-in-out infinite alternate; }
+@keyframes pulse { to { transform: scale(1.07); } }
+.banner {
+  position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
+  font-family: var(--f-display); font-size: clamp(34px, 11vw, 64px); color: var(--blood);
+  text-shadow: 0 0 0 #000, 3px 3px 0 var(--paper), -3px -3px 0 var(--paper), 3px -3px 0 var(--paper), -3px 3px 0 var(--paper);
+  animation: stamp 0.5s cubic-bezier(.2,1.6,.4,1) both;
+}
+@keyframes stamp { from { transform: scale(2.4) rotate(-8deg); opacity: 0; } to { transform: scale(1) rotate(-6deg); opacity: 1; } }
+
+.controls { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
+.bets { display: flex; gap: 6px; flex: 1 1 220px; }
+.payout { flex: 0 0 124px; display: grid; align-content: center; text-align: center; background: var(--ink); border-radius: 8px; padding: 6px 8px; box-shadow: inset 0 2px 6px #000c, inset 0 0 0 2px #6d4b2c; min-width: 0; }
+.payout span { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dust); }
+.payout b { font: 800 24px/1.15 var(--f-body); color: var(--dust); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.payout.win b { color: #9be07a; }
+.payout.win { animation: payflash 0.5s ease-out; }
+.payout.big { box-shadow: inset 0 2px 6px #000c, inset 0 0 0 2px var(--brass-hi), 0 0 14px #f0c46c66; }
+@keyframes payflash { 30% { transform: scale(1.08); } }
+.ghost[aria-pressed="true"].mode { background: var(--brass); color: var(--paper-ink); box-shadow: inset 0 0 0 1px var(--brass-hi); }
+.bets button { flex: 1; }
+button { font: inherit; cursor: pointer; border: 0; border-radius: 8px; }
+button:focus-visible { outline: 3px solid var(--brass-hi); outline-offset: 2px; }
+button:disabled { cursor: not-allowed; opacity: 0.45; }
+.chip { background: var(--ink-2); color: var(--paper); padding: 10px 8px; font-weight: 700; box-shadow: inset 0 0 0 2px #6d4b2c; font-variant-numeric: tabular-nums; }
+.chip[aria-pressed="true"] { background: var(--brass); color: var(--paper-ink); box-shadow: inset 0 0 0 2px var(--brass-hi); }
+.spin {
+  flex: 1 1 140px; padding: 12px 18px; font-family: var(--f-display); font-size: 24px; letter-spacing: 0.04em;
+  background: linear-gradient(180deg, #d64a39, var(--blood)); color: var(--paper);
+  box-shadow: inset 0 -4px 0 #0005, 0 4px 0 #5a1610; text-shadow: 0 2px 0 #0006;
+}
+.spin:active:not(:disabled) { transform: translateY(3px); box-shadow: inset 0 -2px 0 #0005, 0 1px 0 #5a1610; }
+.result { min-height: 1.5em; margin: 0; text-align: center; font-family: var(--f-type); color: var(--paper); font-size: 15px; }
+.result.big { color: var(--brass-hi); }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: #6d4b2c; border-radius: 8px; overflow: hidden; margin: 0; }
+.stats div { background: var(--ink); padding: 5px 8px; min-width: 0; }
+.stats dt { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dust); }
+.stats dd { margin: 0; font: 700 15px/1.3 var(--f-body); color: var(--paper); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.stats dd.up { color: var(--sage); } .stats dd.down { color: #e89a8d; }
+.stats-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: -8px; }
+.stats-head span { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dust); }
+.linkish { background: none; padding: 0; color: var(--dust); font-size: 12px; text-decoration: underline; }
+.linkish:hover { color: var(--paper); }
+.ghost { background: transparent; color: var(--dust); padding: 6px 10px; box-shadow: inset 0 0 0 1px #6d4b2c; font-size: 14px; }
+.ghost:hover { color: var(--paper); }
+
+/* Wins: green "+$" numbers float up from the payout box and the balance */
+.gain { position: fixed; z-index: 57; pointer-events: none; transform: translate(-50%, -50%); font: 800 22px/1 var(--f-body); color: #9be07a; white-space: nowrap;
+  text-shadow: 0 2px 0 #0009, 0 0 10px #3c7a1e; font-variant-numeric: tabular-nums; animation: gainup 1.3s ease-out forwards; }
+.gain.small { font-size: 17px; }
+@keyframes gainup { 0% { opacity: 0; transform: translate(-50%, -30%) scale(0.6); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -190%) scale(1); } }
+.meter.gain-flash b { color: #9be07a; transition: color 0.2s; }
+.meter b { transition: color 0.6s; }
+/* while the reels stop, cells that join a win light up right away */
+.cell.live svg { filter: drop-shadow(0 0 5px #ffcf5a); }
+.reels.showwin .cell:not(.win) svg { opacity: 0.28; filter: grayscale(0.7); transition: opacity 0.3s; }
+.result.wins { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; min-height: 30px; }
+.wchip { display: inline-flex; align-items: center; gap: 5px; background: var(--paper); color: var(--paper-ink); border-radius: 999px; padding: 2px 10px 2px 3px; box-shadow: inset 0 0 0 2px var(--brass), 0 2px 4px #0006; animation: popin 0.3s cubic-bezier(.2,1.5,.4,1) both; }
+.wchip:nth-child(2) { animation-delay: 0.08s; } .wchip:nth-child(3) { animation-delay: 0.16s; } .wchip:nth-child(4) { animation-delay: 0.24s; }
+.wchip i { width: 24px; height: 24px; display: grid; place-items: center; }
+.wchip i svg { width: 100%; height: 100%; }
+.wchip b { font: 800 14px/1 var(--f-body); }
+.wchip em { font: 800 14px/1 var(--f-body); font-style: normal; color: #2f7a1a; font-variant-numeric: tabular-nums; }
+.rule { margin: -6px 0 0; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 6px; text-align: center; font: 700 12px/1.3 var(--f-body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--brass-hi); }
+.rule span { color: var(--dust); }
+.rule .shp { display: inline-flex; gap: 3px; }
+.shp svg, .shapeic { width: 16px; height: 16px; display: inline-block; vertical-align: middle; }
+.wchip.on { box-shadow: inset 0 0 0 2px var(--blood), 0 0 12px #ffcf5a; transform: scale(1.06); }
+.wchip { transition: transform 0.2s, box-shadow 0.2s; }
+.wchip.more { padding: 2px 10px; color: #6b5134; font: 700 13px/1 var(--f-body); }
+.winlines .plain { fill: none; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 3px #fff) drop-shadow(0 2px 2px #0008); animation: fadein 0.3s ease-out both; }
+/* Corruption */
+.cell[data-s="GOO"] svg { animation: goowobble 2s ease-in-out infinite; transform-origin: 50% 85%; }
+@keyframes goowobble { 50% { transform: scale(1.06, 0.94); filter: drop-shadow(0 0 6px #b35cff); } }
+.cell[data-s="BOMB"] svg { animation: bombthrob 1.1s ease-in-out infinite; }
+@keyframes bombthrob { 50% { transform: scale(1.08) rotate(10deg); filter: drop-shadow(0 0 8px #ff7ae6); } }
+/* Bomb blasts */
+.cell.charge svg { animation: charge 0.09s ease-in-out infinite alternate; filter: drop-shadow(0 0 12px #ff7ae6) brightness(1.35); }
+@keyframes charge { from { transform: scale(1.1) rotate(-5deg); } to { transform: scale(1.28) rotate(5deg); } }
+.cell.blown svg { animation: blown 0.32s ease-in forwards; }
+@keyframes blown { to { transform: scale(1.7); opacity: 0; filter: blur(3px) brightness(2.2); } }
+.cell.hole { background: radial-gradient(circle, #8b2fd055 0%, transparent 70%); }
+.blastpop { position: absolute; z-index: 4; pointer-events: none; transform: translate(-50%, -50%); white-space: nowrap; font: 800 15px/1 var(--f-body); color: #ffe6ff; font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 0 #2a0f45, 1px 1px 0 #2a0f45, -1px -1px 0 #2a0f45, 0 0 8px #ff5ad9; animation: blastpop 1s ease-out forwards; }
+.blastpop.big { font-size: 21px; color: #fff3b0; text-shadow: 0 2px 0 #2a0f45, 1px 1px 0 #2a0f45, -1px -1px 0 #2a0f45, 0 0 12px #ff5ad9, 0 0 22px #ffcf5a; }
+@keyframes blastpop { 0% { opacity: 0; transform: translate(-50%, -40%) scale(0.5); } 18% { opacity: 1; transform: translate(-50%, -60%) scale(1.2); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -170%) scale(1); } }
+.shock { position: absolute; z-index: 3; pointer-events: none; border-radius: 50%; border: 5px solid #ff9af0; box-shadow: 0 0 18px #ff5ad9, inset 0 0 18px #ff5ad9; transform: translate(-50%, -50%) scale(0.15); animation: shock 0.55s ease-out forwards; }
+@keyframes shock { to { transform: translate(-50%, -50%) scale(1); opacity: 0; border-width: 1px; } }
+.reelpill { position: absolute; z-index: 4; left: 50%; top: calc(100% + 8px); transform: translateX(-50%); pointer-events: none; white-space: nowrap; font: 800 20px/1 var(--f-body); color: #ffe6ff; background: #2a0f45e6; border-radius: 999px; padding: 6px 14px; box-shadow: 0 0 0 2px #ff7ae6, 0 0 18px #ff5ad9aa; font-variant-numeric: tabular-nums; animation: pillin 0.3s cubic-bezier(.2,1.5,.4,1) both; }
+@keyframes pillin { from { transform: translateX(-50%) scale(0.5); opacity: 0; } }
+.reelpill.bump { animation: tallybump 0.25s ease-out; }
+@keyframes tallybump { 40% { transform: translateX(-50%) scale(1.15); } }
+.wchip.blast em { color: #a3168a; }
+/* Duel target respins */
+.reel.held::before { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; border-radius: 6px; box-shadow: inset 0 0 0 3px var(--blood), inset 0 0 14px #ff6a4a66; }
+.heldtag { position: absolute; z-index: 2; top: 3px; text-transform: uppercase; left: 50%; transform: translateX(-50%); pointer-events: none; font: 800 9px/1 var(--f-body); letter-spacing: 0.14em; color: #fff3c4; background: var(--blood); padding: 2px 5px; border-radius: 4px; }
+.reelpill.respin { color: var(--brass-hi); background: #3a1f10ee; box-shadow: 0 0 0 2px var(--brass), 0 0 16px #ffcf5a77; font-size: 17px; }
+.reelpill.respin.hot { color: #fff3c4; box-shadow: 0 0 0 2px #ff6a4a, 0 0 22px #ff6a4a; }
+@keyframes voidbreath { 50% { transform: scale(1.05); filter: drop-shadow(0 0 6px #b35cff); } }
+.cell.stir svg { animation: voidstir 0.45s ease-in-out infinite alternate; }
+@keyframes voidstir { to { transform: scale(1.1) rotate(5deg); filter: drop-shadow(0 0 10px #c77dff); } }
+.cell.awaken { animation: awaken 0.4s ease-in-out infinite alternate; border-radius: 8px; }
+@keyframes awaken { from { box-shadow: inset 0 0 0 0 #b35cff; } to { box-shadow: inset 0 0 0 4px #c77dff, 0 0 18px #a84dff; } }
+.cell.corrupting svg { animation: morph 0.5s cubic-bezier(.2,1.6,.4,1); }
+@keyframes morph { from { transform: scale(0.2) rotate(-40deg); opacity: 0.1; } }
+.cell[data-s="X"] { background: radial-gradient(circle at 50% 50%, #e2ccff 0%, #f6ead0 72%); }
+.tendrils path { fill: none; stroke: #a84dff; stroke-width: 6; stroke-linecap: round; filter: drop-shadow(0 0 5px #d9a6ff); stroke-dasharray: 260; stroke-dashoffset: 260; animation: drawline 0.4s ease-out forwards; }
+.banner.void { color: #ecd6ff; text-shadow: 0 4px 0 #3a1060, 3px 3px 0 #2a0f45, -3px -3px 0 #2a0f45, 3px -3px 0 #2a0f45, -3px 3px 0 #2a0f45, 0 0 24px #a84dff; }
+.wchip.void em { color: #6a1fb0; }
+.wchip .boost { font: 800 11px/1 var(--f-body); color: #fff; background: #7b2fbf; border-radius: 999px; padding: 2px 5px; }
+.rule .voidrule { color: #d6a6ff; display: inline-flex; align-items: center; gap: 4px; }
+.rule .voidrule svg { width: 18px; height: 18px; }
+.voidsizes { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.voidsizes span { background: #2a0f45; color: #ecd6ff; border-radius: 6px; padding: 3px 8px; font-size: 13px; font-variant-numeric: tabular-nums; box-shadow: inset 0 0 0 1px #7b2fbf; }
+.voidsizes b { color: #c58cff; margin-right: 4px; }
+.blastvals span { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px 2px 3px; background: #f6ead0; color: #3a1060; font-weight: 700; box-shadow: inset 0 0 0 2px #9b4dff; }
+.blastvals svg { width: 22px; height: 22px; }
+.pay.void { box-shadow: inset 0 0 0 2px #7b2fbf; }
+#side-rival > h3 { color: #5b1e8f; text-shadow: 0 0 10px #d9a6ff, 0 0 2px #fff; }
+#cowboy-rival svg { filter: drop-shadow(0 0 7px #a84dffaa); }
+#cyl-rival { filter: drop-shadow(0 0 10px #a84dff77) drop-shadow(0 6px 6px #0006); }
+.jimvoid circle { animation: jimglow 1.6s ease-in-out infinite alternate; }
+@keyframes jimglow { to { opacity: 0.4; } }
+.shapes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 10px 0; }
+.shapecard { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 8px; align-items: center; background: var(--paper); color: var(--paper-ink); border-radius: 8px; padding: 6px 8px; font-size: 13px; line-height: 1.25; }
+.shapecard svg { width: 40px; height: 40px; }
+.shapecard b { font-size: 14px; } .shapecard em { font-style: normal; font-weight: 800; color: var(--blood); }
+.paygrid { width: 100%; border-collapse: collapse; margin-top: 10px; font-variant-numeric: tabular-nums; font-size: 12px; background: var(--paper); color: var(--paper-ink); border-radius: 8px; overflow: hidden; }
+.paygrid th, .paygrid td { padding: 4px 3px; text-align: center; border-bottom: 1px solid #d8c59b; }
+.paygrid thead th { background: var(--paper-ink); color: var(--brass-hi); font-weight: 800; }
+.paygrid td.sym { width: 34px; } .paygrid td.sym svg { width: 28px; height: 28px; display: block; margin: 0 auto; }
+.paygrid thead th svg { width: 22px; height: 22px; display: block; margin: 0 auto 2px; }
+.paygrid thead th small { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.02em; }
+@media (max-width: 400px) { .paygrid { font-size: 10.5px; } .paygrid th, .paygrid td { padding: 3px 1px; } }
+.reel.tease.hot { animation-duration: 0.3s; }
+
+/* ---- Bounty spins: free spins on the main reels where only bounty symbols count ---- */
+.bountybar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: stretch; animation: popin 0.4s cubic-bezier(.2,1.5,.4,1); }
+.bountybar > div { background: var(--ink); border-radius: 8px; padding: 6px 10px; box-shadow: inset 0 2px 6px #000c, inset 0 0 0 2px var(--brass); min-width: 0; }
+.bountybar span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dust); }
+.bb-spins b { font: 800 16px/1.3 var(--f-body); color: var(--paper); font-variant-numeric: tabular-nums; }
+.pips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.pips i { width: 10px; height: 10px; border-radius: 50%; background: #6d4b2c; box-shadow: inset 0 1px 2px #000a; transition: background 0.25s, box-shadow 0.25s; }
+.pips i.used { background: #4a3a2c; box-shadow: inset 0 0 0 1px #8a6a48; }
+.pips i.now { background: var(--brass-hi); box-shadow: 0 0 8px #ffcf5a; }
+.bb-pot { display: grid; grid-template-columns: auto auto; column-gap: 8px; align-items: center; text-align: right; min-width: 128px; }
+.bb-pot span { grid-column: 2; }
+.bb-pot b { grid-column: 2; font: 800 clamp(19px, 6vw, 24px)/1.1 var(--f-body); color: var(--brass-hi); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bb-pot .bbicon { grid-column: 1; grid-row: 1 / 3; width: 30px; height: 30px; }
+.bb-pot.bump { animation: potpulse 0.4s ease-out; }
+.bountybar.done .bb-pot { box-shadow: inset 0 2px 6px #000c, inset 0 0 0 2px var(--brass-hi), 0 0 18px #ffcf5a88; }
+.reels.bounty { box-shadow: inset 0 0 0 3px var(--brass-hi), inset 0 6px 14px #0006, 0 0 22px #ffcf5a66; }
+.reels.bounty .cell:not(.cash) svg { opacity: 0.22; filter: grayscale(0.8); }
+.cell.cash .bsvg { width: 74%; height: 74%; margin-top: -12%; overflow: visible; filter: drop-shadow(0 3px 3px #0005); }
+.cell.cash .cv { position: absolute; left: 50%; bottom: 5%; transform: translateX(-50%); background: var(--paper-ink); color: var(--brass-hi); border-radius: 5px; padding: 1px 5px; white-space: nowrap;
+  font: 800 clamp(9px, calc(var(--cell) * 0.17), 14px)/1.15 var(--f-body); font-variant-numeric: tabular-nums; box-shadow: 0 2px 3px #0006; }
+.cell.cash.land .bsvg { animation: slam 0.45s cubic-bezier(.2,1.6,.4,1); filter: drop-shadow(0 0 6px #fff7e0) drop-shadow(0 0 12px #ffcf5a); }
+.cell.cash.got .bsvg { animation: gotpop 0.3s ease-out; }
+@keyframes gotpop { 40% { transform: scale(0.85); } }
+.bountychip { display: grid; justify-items: end; background: var(--ink); border-radius: 8px; padding: 4px 10px; box-shadow: inset 0 2px 6px #000c, inset 0 0 0 2px var(--brass); }
+.bountychip span { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dust); }
+.bountychip b { font: 800 18px/1.1 var(--f-body); color: var(--brass-hi); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ---- Bonus buy ---- */
+.buyrow { display: flex; gap: 8px; flex-wrap: wrap; }
+.buy { flex: 1 1 200px; padding: 10px 14px; font-weight: 800; font-size: 16px; background: var(--ink-2); color: var(--brass-hi); box-shadow: inset 0 0 0 2px var(--brass); }
+.buy small { display: block; font-weight: 500; color: var(--dust); font-size: 12px; }
+.confirm { display: grid; gap: 10px; background: var(--paper); color: var(--paper-ink); border-radius: 10px; padding: 12px 14px; }
+.confirm p { margin: 0; }
+.confirm .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.confirm .yes { flex: 1; padding: 10px; font-weight: 800; background: var(--blood); color: var(--paper); }
+.confirm .no { flex: 1; padding: 10px; font-weight: 700; background: transparent; color: var(--paper-ink); box-shadow: inset 0 0 0 2px var(--paper-ink); }
+
+/* ---- Bonus duel ---- */
+.duel { display: grid; gap: 12px; }
+.duel-head { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.duel-head h2 { font-family: var(--f-display); font-weight: 400; margin: 0; font-size: 24px; color: var(--brass-hi); }
+.duel-head p { margin: 0; color: var(--dust); font-size: 14px; }
+.stages { display: flex; gap: 6px; }
+.cylwrap { position: relative; width: min(100%, 190px); aspect-ratio: 1; container-type: inline-size; }
+.cylwrap .cyl { width: 100%; height: 100%; }
+/* The payout readout sits in the middle of the revolver; it does not turn with the drum */
+.hub { position: absolute; inset: 32%; border-radius: 50%; display: grid; place-content: center; justify-items: center; gap: 1px; text-align: center; z-index: 2; pointer-events: none;
+  background: radial-gradient(circle at 40% 30%, #3d2c1d, var(--ink) 72%); box-shadow: 0 0 0 2px var(--brass), 0 0 0 4px #1d2124, inset 0 3px 8px #000c; }
+.hub span { font-size: clamp(7px, 4.4cqw, 9px); line-height: 1; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dust); }
+.hub b { font: 800 clamp(12px, 9.6cqw, 19px)/1.05 var(--f-body); color: var(--brass-hi); font-variant-numeric: tabular-nums; white-space: nowrap; transition: color 0.3s; }
+.hub.rival b { color: var(--paper); }
+@container (max-width: 112px) { .hub span { display: none; } }
+.hub.up b { color: #b9e08f; } .hub.down b { color: #ff8a78; }
+.hub.up { animation: potpulse 0.45s ease-out; } .hub.down { animation: potshake 0.4s ease-out; }
+@keyframes potpulse { 35% { transform: scale(1.14); } }
+@keyframes potshake { 20% { transform: translateX(-5px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); } }
+.delta { position: absolute; left: -60%; right: -60%; top: -42%; text-align: center; text-shadow: 0 1px 2px #000, 0 0 5px #000; font: 800 15px/1 var(--f-body); pointer-events: none; animation: popup 1.2s ease-out forwards; font-variant-numeric: tabular-nums; }
+.delta.up { color: #b9e08f; } .delta.down { color: #ff8a78; }
+.stages span { flex: 1; text-align: center; font-size: 12px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; padding: 5px 4px; border-radius: 6px; background: var(--ink); color: var(--dust); }
+.stages span.on { background: var(--brass); color: var(--paper-ink); }
+.arena { --reelw: clamp(34px, 11vw, 58px); display: grid; grid-template-columns: minmax(0, 1fr) var(--reelw) minmax(0, 1fr); column-gap: 6px; row-gap: 4px; justify-items: center; align-items: start; position: relative; overflow: hidden;
+  background: linear-gradient(180deg, #e9b46f 0%, #d39a57 64%, #8d5a30 64.5%, #6e4424 100%); border-radius: 10px; padding: 10px 8px 6px; }
+@keyframes landpop { from { transform: scale(1.35); } }
+.side { display: contents; }
+#side-player > * { grid-column: 1; } #side-rival > * { grid-column: 3; }
+.side > h3 { grid-row: 1; } .side > .cylwrap { grid-row: 2; } .side > .tally { grid-row: 3; } .side > .cowboy { grid-row: 4; }
+/* One-reel slot between the revolvers: every bullet is rolled here, then flies into its gun */
+.mini { grid-column: 2; grid-row: 1 / 4; align-self: center; width: var(--reelw); display: grid; gap: 4px; justify-items: center; transition: opacity 0.3s, visibility 0.3s; }
+.mini.idle { opacity: 0; visibility: hidden; }
+.mini-frame { width: 100%; padding: 3px; border-radius: 9px; position: relative; background: linear-gradient(180deg, var(--wood-hi), var(--wood)); box-shadow: inset 0 0 0 2px var(--brass), 0 4px 10px #0007; }
+.mini-frame::before, .mini-frame::after { content: ""; position: absolute; top: 50%; margin-top: -6px; border: 6px solid transparent; opacity: 0.35; transition: opacity 0.2s; z-index: 2; }
+.mini-frame::before { left: -9px; border-right: 7px solid var(--brass-hi); border-left: 0; }
+.mini-frame::after { right: -9px; border-left: 7px solid var(--brass-hi); border-right: 0; }
+.mini.to-player .mini-frame::before, .mini.to-rival .mini-frame::after { opacity: 1; filter: drop-shadow(0 0 3px #ffe08a); }
+.mini-win { --row: calc(var(--reelw) - 10px); height: calc(var(--row) * 5); overflow: hidden; border-radius: 6px; background: #f6ead0; position: relative; }
+.mini-win::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, #2d1e1299, #2d1e1200 36%, #2d1e1200 64%, #2d1e1299); box-shadow: inset 0 0 0 1px #0003; }
+.mini-strip { display: flex; flex-direction: column; will-change: transform; }
+.mtok { height: var(--row); flex: none; display: grid; place-items: center; }
+.mtok .bsvg { width: calc(var(--row) - 2px); height: calc(var(--row) - 2px); display: block; overflow: visible; }
+.mtok.land .bsvg { animation: landpop 0.35s cubic-bezier(.2,1.6,.4,1); filter: drop-shadow(0 0 5px #fff7e0) drop-shadow(0 0 10px #ffe08a); }
+.mtok.gone .bsvg { opacity: 0.2; transition: opacity 0.15s; }
+
+@media (max-width: 480px) { #duel { padding: 12px; } .arena { padding: 10px 4px 6px; column-gap: 4px; } }
+.side h3 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 15px; color: var(--paper-ink); text-align: center; }
+.side.active h3 { color: #fff7e0; text-shadow: 0 2px 0 #0007; }
+.cyl { width: min(100%, 190px); aspect-ratio: 1; max-width: 100%; }
+.cyl svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.cyl .ch.fresh { animation: chpop 0.4s cubic-bezier(.2,1.6,.4,1); transform-box: fill-box; transform-origin: center; }
+.cyl .ch.now circle.hole { stroke: #fff7e0; stroke-width: 4; }
+.cyl .ch.fired { animation: lockin 0.55s cubic-bezier(.2,1.6,.4,1); transform-box: fill-box; transform-origin: center; }
+.cyl .ch.risk { animation: tremble 0.11s linear infinite; transform-box: fill-box; transform-origin: center; }
+.cyl .ch.risk circle.hole { stroke: #e0402f; stroke-width: 4; }
+.cyl .ch.safe { animation: safepop 0.45s ease-out; transform-box: fill-box; transform-origin: center; }
+.cyl .ch.safe circle.hole { stroke: #7ee07e; stroke-width: 4.5; }
+@keyframes safepop { 35% { transform: scale(1.1); } }
+@keyframes lockin { 0% { transform: scale(1.35); } 100% { transform: scale(1); } }
+@keyframes tremble { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(-1.2px, 0.6px); } 50% { transform: translate(1px, -0.8px); } 75% { transform: translate(-0.6px, -1px); } }
+.coinflip { position: absolute; inset: 0; z-index: 7; display: grid; place-content: center; justify-items: center; gap: 10px; background: #160f0a73; pointer-events: none; animation: fadein 0.25s; }
+.coinstage { perspective: 600px; }
+.coin { width: 92px; height: 92px; position: relative; transform-style: preserve-3d; }
+.coin .face { position: absolute; inset: 0; border-radius: 50%; display: grid; place-content: center; text-align: center; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  font: 400 26px/1 var(--f-display); color: #5a3a12; background: radial-gradient(circle at 38% 32%, #fff2b8, #f0c46c 45%, #b9822e 100%); box-shadow: inset 0 0 0 4px #9a6a1e, inset 0 0 0 7px #f6d98a, 0 6px 14px #0008; }
+.coin .face small { display: block; font: 800 10px/1.4 var(--f-body); letter-spacing: 0.14em; text-transform: uppercase; }
+.coin .tails { transform: rotateX(180deg); background: radial-gradient(circle at 38% 32%, #f3f3ee, #bfc4c8 45%, #7d858b 100%); color: #2d2420; box-shadow: inset 0 0 0 4px #5f666c, inset 0 0 0 7px #dfe3e6, 0 6px 14px #0008; }
+.coincap { margin: 0; text-align: center; font: 700 15px/1.35 var(--f-body); color: var(--paper); text-shadow: 0 2px 3px #000; }
+.coinflip.done .coincap { font-size: 18px; }
+.coincap b { font-family: var(--f-display); font-weight: 400; color: var(--brass-hi); }
+.cyl .ch.hit { animation: chhit 0.5s ease-out; transform-box: fill-box; transform-origin: center; }
+@keyframes chpop { from { transform: scale(0.2); } }
+@keyframes chhit { 30% { transform: scale(1.25); } }
+.tally { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; width: 100%; max-width: 150px; }
+.tally div { background: #2d1e12d9; border-radius: 6px; padding: 3px 2px; text-align: center; min-width: 0; }
+.tally span { display: block; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dust); }
+.tally b { display: block; font: 800 14px/1.2 var(--f-body); color: var(--paper); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.tally .lk b { color: var(--brass-hi); }
+.tally .rk b { color: #ffb4a6; }
+.tally .lk { transition: box-shadow 0.3s; }
+.tally .lk.lead { box-shadow: inset 0 0 0 2px var(--brass-hi), 0 0 10px #ffcf5a88; }
+.cowboy { width: 76px; height: 92px; display: grid; place-items: center; position: relative; }
+.cowboy svg { width: 100%; height: 100%; }
+.pop { position: absolute; font-family: var(--f-display); font-size: 21px; pointer-events: none; animation: popup 1.3s ease-out forwards; z-index: 5; color: #fff7e0; text-shadow: 2px 2px 0 #000a; white-space: nowrap; }
+.pop.tag { font: 800 15px/1.2 var(--f-body); background: var(--paper-ink); color: var(--brass-hi); padding: 3px 8px; border-radius: 6px; text-shadow: none; }
+.pop.miss { color: var(--paper); }
+.pop.hit { color: var(--blood); text-shadow: 2px 2px 0 var(--paper); }
+@keyframes popup { from { transform: translateY(0) scale(0.6); opacity: 0; } 15% { opacity: 1; transform: scale(1.1); } 75% { opacity: 1; } to { transform: translateY(-30px); opacity: 0; } }
+.tracer { position: absolute; height: 3px; background: linear-gradient(90deg, #fff0, #fff8d0 40%, #ffd36b); transform-origin: 0 50%; pointer-events: none; z-index: 4; border-radius: 2px; animation: tracer 0.3s ease-out forwards; }
+@keyframes tracer { from { opacity: 1; } to { opacity: 0; } }
+.flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; animation: flash 0.25s ease-out; z-index: 3; }
+@keyframes flash { 10% { opacity: 0.45; } }
+.draw { position: absolute; inset: 0; display: grid; place-items: center; z-index: 6; pointer-events: none; font-family: var(--f-display); font-size: clamp(44px, 14vw, 80px); color: var(--blood);
+  text-shadow: 3px 3px 0 var(--paper), -3px -3px 0 var(--paper), 3px -3px 0 var(--paper), -3px 3px 0 var(--paper); animation: stamp 0.5s cubic-bezier(.2,1.6,.4,1) both; }
+@keyframes popin { from { transform: scale(0.5); opacity: 0; } }
+.legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 6px; }
+.legend div { display: flex; gap: 6px; align-items: center; font-size: 12px; line-height: 1.25; color: var(--text); background: #0003; border-radius: 6px; padding: 5px 8px; min-width: 0; }
+.legend i { flex: none; width: 46px; text-align: center; font: 800 12px/1 var(--f-body); font-style: normal; padding: 6px 2px; border-radius: 12px; }
+.k-cash-bg { background: #e6c37e; color: #2d1e12; } .k-cashhi-bg { background: #ffcf3f; color: #2d1e12; }
+.ico { width: 66%; height: 66%; display: block; }
+.legend .cashrow { grid-column: 1 / -1; display: grid; gap: 6px; }
+.cashrow .cr { display: flex; flex-wrap: wrap; gap: 6px 12px; background: none; padding: 0; }
+.cashrow .cr span { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.legend i.lb { width: 30px; height: 30px; padding: 0; border-radius: 0; background: none; flex: none; position: relative; }
+.legend .lbs { display: flex; gap: 2px; flex: none; }
+.legend .wide { grid-column: 1 / -1; }
+.legend i.lockd .lk { position: absolute; width: 14px; height: 14px; right: -2px; bottom: -3px; } .k-mult-bg { background: #b83a2c; color: #fff4e0; } .k-blank-bg { background: #8c8c86; color: #fff; } .k-special-bg { background: #3d6b9a; color: #fff; } .k-lock-bg { background: #5f5b56; color: #e4ddd0; }
+.outcome { text-align: center; display: grid; gap: 8px; background: var(--paper); color: var(--paper-ink); border-radius: 10px; padding: 14px; }
+.outcome h3 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 26px; }
+.outcome p { margin: 0; font-family: var(--f-type); line-height: 1.45; }
+.outcome .big { font: 800 30px/1.1 var(--f-body); color: var(--blood); font-variant-numeric: tabular-nums; }
+
+details.info { background: #0003; border-radius: 10px; padding: 10px 14px; }
+details.info summary { cursor: pointer; font-weight: 700; color: var(--brass-hi); }
+details.info p, details.info li { line-height: 1.5; color: var(--text); max-width: 65ch; }
+.paytable { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
+.pay { display: flex; gap: 8px; align-items: center; background: var(--paper); color: var(--paper-ink); border-radius: 8px; padding: 6px 8px; font-size: 13px; font-variant-numeric: tabular-nums; min-width: 0; }
+.pay svg { width: 40px; height: 40px; flex: none; }
+/* ---- Juice: effects layers ---- */
+#fx, #bgfx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#fx { z-index: 55; }
+#bgfx { z-index: -1; }
+.screenflash { position: fixed; inset: 0; pointer-events: none; z-index: 45; opacity: 0; }
+.iris { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, #3a1a10 0%, var(--ink) 70%); }
+.iris span { font-family: var(--f-display); font-size: clamp(40px, 12vw, 84px); color: var(--brass-hi); text-shadow: 0 4px 0 #000, 0 0 30px #f0c46c66; letter-spacing: 0.04em; }
+.bigwin { position: fixed; inset: 0; z-index: 50; display: grid; place-content: center; justify-items: center; gap: 6px; pointer-events: none;
+  background: radial-gradient(60% 50% at 50% 50%, #2a1408ee 0%, #160f0acc 60%, #160f0a66 100%); animation: fadein 0.25s ease-out; }
+.bw-title { font-family: var(--f-display); font-size: clamp(48px, 15vw, 110px); line-height: 1; color: var(--brass-hi); letter-spacing: 0.03em;
+  text-shadow: 0 5px 0 #6b3a12, 0 9px 0 #0009, 0 0 40px #ffcf5a88; animation: stamp 0.55s cubic-bezier(.2,1.6,.4,1) both, wobble 1.2s ease-in-out 0.6s infinite alternate; }
+.bw-amt { font: 800 clamp(40px, 12vw, 80px)/1 var(--f-body); color: #fff6d8; font-variant-numeric: tabular-nums; text-shadow: 0 4px 0 #000a, 0 0 24px #ffcf5a; }
+@keyframes fadein { from { opacity: 0; } }
+@keyframes wobble { from { transform: rotate(-4deg) scale(1); } to { transform: rotate(2deg) scale(1.04); } }
+
+/* Title glint and marquee lights */
+h1 { background: linear-gradient(100deg, var(--brass-hi) 0 42%, #fff8de 50%, var(--brass-hi) 58% 100%); background-size: 260% 100%; background-position: 100% 0;
+  -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(0 3px 0 #000a); animation: glint 7s ease-in-out 1s infinite; }
+@keyframes glint { 0%, 70% { background-position: 100% 0; } 100% { background-position: 0% 0; } }
+.marquee { display: flex; justify-content: space-between; padding: 0 4px; margin: -6px 0 -6px; }
+.marquee i { width: 9px; height: 9px; border-radius: 50%; background: #6e4a2a; box-shadow: inset 0 1px 2px #0008; animation: bulb 1.5s linear infinite; }
+.marquee i:nth-child(3n+2) { animation-delay: -0.5s; } .marquee i:nth-child(3n) { animation-delay: -1s; }
+@keyframes bulb { 0%, 32% { background: #ffe39a; box-shadow: 0 0 8px 1px #ffcf5a, inset 0 0 2px #fff; } 33%, 100% { background: #6e4a2a; box-shadow: inset 0 1px 2px #0008; } }
+.party .marquee i { animation-duration: 0.36s; }
+.party .reels { box-shadow: inset 0 0 0 3px var(--brass-hi), inset 0 6px 14px #0006, 0 0 26px #ffcf5a88; }
+.spin:not(:disabled) { animation: spinglow 2.4s ease-in-out infinite; }
+@keyframes spinglow { 50% { box-shadow: inset 0 -4px 0 #0005, 0 4px 0 #5a1610, 0 0 18px #ff6a4a99; } }
+
+/* Reels */
+.winlines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; overflow: visible; }
+/* Gunshot tracers. Lines: a bullet streaks along the line and leaves a scorched trail with a hot core.
+   Area shapes (squares, groups, corners, the frame): an outline riddled with bullet holes. */
+.trail polyline, .riddled path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.trail .glow { stroke-width: 13; opacity: 0.6; filter: blur(2.5px); }
+.trail .scorch { stroke: #2a1608; stroke-width: 6.5; opacity: 0.7; }
+.trail .core { stroke: #fff1c0; stroke-width: 2.8; filter: drop-shadow(0 0 3px #ffb347) drop-shadow(0 0 6px #ff8a3a); }
+.trail.fired .glow, .trail.fired .scorch, .trail.fired .core { stroke-dasharray: 1 1; stroke-dashoffset: 1; animation: drawline var(--t) linear var(--d) forwards; }
+.trail .head, .trail .tail { animation: bullet var(--t) linear var(--d) both; }
+.trail .head { --a: 0.04; stroke: #fffbe6; stroke-width: 6; stroke-dasharray: 0.04 3; filter: drop-shadow(0 0 4px #fff) drop-shadow(0 0 9px #ffb347); }
+.trail .tail { --a: 0.2; stroke: #ff9a3a; stroke-width: 7; opacity: 0.75; stroke-dasharray: 0.2 3; filter: blur(1.5px); }
+@keyframes bullet { from { stroke-dashoffset: var(--a); } to { stroke-dashoffset: -1; } }
+.riddled { animation: fadein 0.25s ease-out var(--d, 0ms) both; }
+.riddled .glow { stroke-width: 9; opacity: 0.4; filter: blur(2px); }
+.riddled .rim { stroke: #7a4a22; stroke-width: 8; stroke-dasharray: 0.1 10; opacity: 0.55; }
+.riddled .hole { stroke: #1c1008; stroke-width: 4.6; stroke-dasharray: 0.1 10; filter: drop-shadow(0 0 1px #6b3a12); }
+/* A smoking bullet hole in the corner of every winning symbol */
+.cell .hole { position: absolute; z-index: 1; top: calc(3% + var(--y)); right: calc(3% + var(--x)); width: 34%; height: 34%; pointer-events: none; transform: rotate(var(--r)); }
+.cell .hole svg { width: 100%; height: 100%; animation: none; filter: none; overflow: visible; }
+.cell .hole.fresh { animation: holein 0.22s cubic-bezier(.2,1.6,.4,1) both; }
+@keyframes holein { from { transform: rotate(var(--r)) scale(2); opacity: 0; } }
+.cell .hole .ember { animation: ember 1.4s ease-out forwards; }
+@keyframes ember { to { opacity: 0; } }
+.cell .hole .smoke { opacity: 0; }
+.cell .hole.fresh .smoke { animation: smoke 1.8s ease-out 0.1s forwards; }
+@keyframes smoke { from { opacity: 0.85; transform: translateY(0) scale(0.7); } to { opacity: 0; transform: translateY(-16px) scale(1.5); } }
+.winlines circle { stroke: #fff; stroke-width: 2; transform-box: fill-box; transform-origin: center; animation: dotin 0.3s cubic-bezier(.2,1.6,.4,1) both; }
+@keyframes drawline { to { stroke-dashoffset: 0; } }
+@keyframes linepulse { to { opacity: 0.55; } }
+@keyframes dotin { from { transform: scale(0); } }
+.cell.win svg { filter: drop-shadow(0 0 6px #ffcf5a); }
+.cell.win[data-s="S"] svg { animation: wobble 0.45s ease-in-out infinite alternate; }
+.cell .hole svg, .cell.win .hole svg, .reels .cell .hole svg { animation: none; filter: none; transform: none; }
+.cell.land-s svg { animation: slam 0.45s cubic-bezier(.2,1.6,.4,1); }
+@keyframes slam { from { transform: scale(1.5); } }
+.reel.tease { animation: tease 0.5s ease-in-out infinite alternate; }
+@keyframes tease { from { box-shadow: 0 0 0 3px #ffcf5a, 0 0 12px 2px #ff9b4a; } to { box-shadow: 0 0 0 3px #fff3c4, 0 0 26px 6px #ff6a3a; } }
+.banner.gold { color: var(--brass-hi); text-shadow: 0 4px 0 #6b3a12, 3px 3px 0 var(--paper-ink), -3px -3px 0 var(--paper-ink), 3px -3px 0 var(--paper-ink), -3px 3px 0 var(--paper-ink); }
+.banner { z-index: 3; }
+
+/* Duel arena scenery */
+.scenery { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+.arena > .side > *, .arena > .mini { position: relative; z-index: 1; }
+.tumble { position: absolute; bottom: 6px; left: -48px; width: 34px; height: 34px; z-index: 0; pointer-events: none; animation: roll 17s linear 4s infinite; }
+.tumble svg { width: 100%; height: 100%; animation: bounce 0.7s linear infinite; }
+@keyframes roll { 0% { left: -48px; } 42% { left: calc(100% + 48px); } 100% { left: calc(100% + 48px); } }
+@keyframes bounce { 0% { transform: translateY(0) rotate(0); } 25% { transform: translateY(-9px) rotate(90deg); } 50% { transform: translateY(0) rotate(180deg); } 75% { transform: translateY(-5px) rotate(270deg); } 100% { transform: translateY(0) rotate(360deg); } }
+.side.active .cyl { filter: drop-shadow(0 0 12px #fff8) drop-shadow(0 6px 6px #0006); }
+.cyl { filter: drop-shadow(0 6px 6px #0006); transition: filter 0.3s; }
+.cowboy svg { transform-origin: 50% 100%; animation: breathe 2.6s ease-in-out infinite; }
+#cowboy-rival svg { animation-delay: -1.3s; }
+@keyframes breathe { 50% { transform: scaleY(1.03); } }
+.cowboy { transition: transform 0.25s; }
+.cowboy.aiming { transform: translateY(-3px); }
+.cowboy.down svg { animation: fall 0.7s cubic-bezier(.5,0,.8,.6) forwards; transform: none; transition: none; opacity: 0.9; }
+#cowboy-rival.down svg { animation-name: fallR; }
+@keyframes fall { to { transform: rotate(-78deg) scale(0.9); } }
+@keyframes fallR { to { transform: rotate(78deg) scale(0.9); } }
+.muzzle { position: absolute; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; pointer-events: none; z-index: 5;
+  background: radial-gradient(circle, #fff 0 14%, #ffe28a 28%, #ff8a2a99 48%, transparent 70%); animation: muzzle 0.2s ease-out forwards; }
+@keyframes muzzle { from { transform: scale(0.3); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+.reticle { position: absolute; width: 64px; height: 64px; margin: -32px 0 0 -32px; z-index: 6; pointer-events: none; animation: reticle 0.5s cubic-bezier(.2,.8,.3,1) both, fadeout 0.3s ease-in 0.65s forwards; }
+.reticle svg { width: 100%; height: 100%; filter: drop-shadow(0 0 4px #fff); }
+@keyframes reticle { from { transform: scale(2.4) rotate(-120deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fadeout { to { opacity: 0; } }
+.flybullet { position: fixed; z-index: 56; width: 44px; height: 44px; pointer-events: none; transform: translate(-50%, -50%); filter: drop-shadow(0 0 8px #ffe7a0) drop-shadow(0 6px 6px #0007); }
+.flybullet .bsvg, .legend .bsvg { width: 100%; height: 100%; display: block; overflow: visible; }
+.hub.hot::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; pointer-events: none; animation: hotglow 0.8s ease-in-out infinite alternate; }
+@keyframes hotglow { from { box-shadow: 0 0 8px 1px #ffcf5a88; } to { box-shadow: 0 0 22px 4px #ffcf5a; } }
+.stages span { transition: background 0.3s, color 0.3s, box-shadow 0.3s; }
+.stages span.on { box-shadow: 0 0 12px #f0c46c77; }
+.outcome { animation: popin 0.45s cubic-bezier(.2,1.5,.4,1); }
+.outcome.won { background: linear-gradient(180deg, #fff3cf, var(--paper)); box-shadow: 0 0 0 3px var(--brass), 0 0 26px #ffcf5a77; }
+.outcome.won h3 { color: var(--blood); }
+.outcome.lost { background: #cbbd9f; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; } }
+</style>
+
+<canvas id="bgfx" aria-hidden="true"></canvas>
+<canvas id="fx" aria-hidden="true"></canvas>
+<div class="wrap">
+  <header>
+    <h1>High Noon Reels</h1>
+    <p class="tag">Pick a bet and spin. Three duel targets call out Rattlesnake Jim.</p>
+  </header>
+
+  <section class="cabinet" id="machine" aria-label="Slot machine">
+    <div class="marquee" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="meters">
+      <div class="meter"><span>Balance</span><b id="balance">$1,000</b></div>
+      <div class="meter"><span>Bet</span><b id="betShow">$10</b></div>
+    </div>
+    <div class="bountybar" id="bountyBar" hidden>
+      <div class="bb-spins"><span>Bounty spins</span><b id="bbSpins">1 / 5</b><div class="pips" id="bbPips" aria-hidden="true"></div></div>
+      <div class="bb-pot" id="bbPotBox" role="status" aria-label="Bounty collected"><svg class="bbicon" id="bbIcon" viewBox="0 0 40 40" aria-hidden="true"><path d="M15 6h10l-3 6c8 3 12 11 10 18-2 6-22 6-24 0-2-7 2-15 10-18z" fill="#a9784a" stroke="#5b3a1d" stroke-width="2"/><path d="M15 12q5 3 10 0" stroke="#5b3a1d" stroke-width="2" fill="none"/><text x="20" y="31" text-anchor="middle" font-family="Rye,serif" font-size="14" fill="#f0c46c">$</text></svg><span>Bounty</span><b id="bbPot">$0</b></div>
+    </div>
+    <p class="rule" id="rule">Shapes pay <span class="shp" id="ruleShapes"></span> <span>· Wanted is wild</span> <span class="voidrule" id="ruleVoid">· 3 touching goo spread</span></p>
+    <div class="reels" id="reels"></div>
+    <p class="result" id="result" aria-live="polite"></p>
+    <div class="controls">
+      <div class="bets" role="group" aria-label="Bet size" id="bets"></div>
+      <div class="payout" id="payoutBox" role="status" aria-label="Payout of the last spin"><span>Payout</span><b id="payout">$0</b></div>
+      <button class="spin" id="spin">Spin</button>
+    </div>
+    <div class="buyrow">
+      <button class="buy" id="buy">Buy the bonus for <span id="buyPrice">$520</span><small>Go straight to 5 bounty spins and the showdown with Jim</small></button>
+    </div>
+    <div class="confirm" id="buyConfirm" hidden>
+      <p id="buyText"></p>
+      <div class="row"><button class="yes" id="buyYes">Pay and start</button><button class="no" id="buyNo">Cancel</button></div>
+    </div>
+    <div class="stats-head"><span>Session stats</span><button class="linkish" id="resetStats">Reset stats</button></div>
+    <dl class="stats" id="stats">
+      <div><dt>Spins</dt><dd id="stSpins">0</dd></div>
+      <div><dt>Started with</dt><dd id="stStart">$1,000</dd></div>
+      <div><dt>Money now</dt><dd id="stNow">$1,000</dd></div>
+      <div><dt>Profit / loss</dt><dd id="stNet">$0</dd></div>
+      <div><dt>Return</dt><dd id="stRtp">–</dd></div>
+      <div><dt>Duels</dt><dd id="stDuels">0</dd></div>
+    </dl>
+    <div class="tools">
+      <button class="ghost mode" id="instant" aria-pressed="false">Instant spin: off</button>
+      <button class="ghost" id="sound" aria-pressed="true">Sound on</button>
+      <button class="ghost" id="refill">Add $1,000 (testing)</button>
+    </div>
+  </section>
+
+  <section class="cabinet duel" id="duel" hidden aria-label="Bonus duel">
+    <div class="marquee" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="duel-head">
+      <h2>Showdown with Rattlesnake Jim</h2>
+      <div class="bountychip" role="status" aria-label="Bounty from the bounty spins"><span>Bounty</span><b id="bountyVal">$0</b></div>
+    </div>
+    <div class="stages"><span id="st1" class="on">1 · Loading</span><span id="st2">2 · Duel</span></div>
+    <div class="arena" id="arena">
+      <svg class="scenery" viewBox="0 0 400 300" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+        <defs>
+          <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6cf8a"/><stop offset=".5" stop-color="#ecaa62"/><stop offset=".78" stop-color="#d98446"/></linearGradient>
+          <radialGradient id="sun" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff4cf"/><stop offset=".6" stop-color="#ffe08f"/><stop offset="1" stop-color="#ffd27a" stop-opacity="0"/></radialGradient>
+          <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9a5e32"/><stop offset="1" stop-color="#5e3a1e"/></linearGradient>
+        </defs>
+        <rect width="400" height="300" fill="url(#sky)"/>
+        <circle cx="200" cy="212" r="70" fill="url(#sun)" opacity=".8"/>
+        <circle cx="200" cy="212" r="34" fill="#fff0c2" opacity=".9"/>
+        <path d="M0 232 L28 232 L36 214 L84 214 L92 232 L160 232 L170 222 L182 222 L190 232 L262 232 L272 196 L318 196 L330 232 L400 232 V300 H0Z" fill="#c07444" opacity=".75"/>
+        <path d="M0 240 L56 240 L64 226 L104 226 L114 240 L296 240 L304 230 L330 230 L338 240 L400 240 V300 H0Z" fill="#9c5530" opacity=".85"/>
+        <rect y="240" width="400" height="60" fill="url(#ground)"/>
+        <g fill="#5a3a1c" opacity=".7"><rect x="30" y="226" width="5" height="16" rx="2.5"/><path d="M30 234 h-5 v-6 a2 2 0 0 1 4 0 v3 h1z"/><rect x="362" y="222" width="6" height="20" rx="3"/><path d="M368 232 h5 v-7 a2.4 2.4 0 0 1 4.8 0 v4 a3 3 0 0 1-3 3z"/></g>
+        <g fill="#000" opacity=".12"><ellipse cx="100" cy="292" rx="60" ry="5"/><ellipse cx="300" cy="292" rx="60" ry="5"/></g>
+      </svg>
+      <div class="tumble" aria-hidden="true"><svg viewBox="0 0 40 40"><g fill="none" stroke="#7a5230" stroke-width="2"><circle cx="20" cy="20" r="16"/><path d="M6 14c10 4 18-8 28 2M8 28c8-8 18 4 26-6M14 5c-4 12 8 18 2 30M26 4c4 10-6 20 2 32"/><circle cx="20" cy="20" r="9" stroke="#8d6038"/></g></svg></div>
+      <div class="mini idle" id="mini" aria-hidden="true"><div class="mini-frame"><div class="mini-win"><div class="mini-strip" id="miniStrip"></div></div></div></div>
+      <div class="side" id="side-player">
+        <h3>You</h3>
+        <div class="cylwrap"><div class="cyl" id="cyl-player"></div><div class="hub" id="pot" role="status" aria-label="Payout so far"><span id="potLabel">Payout</span><b id="potVal">$0</b></div></div>
+        <div class="tally" id="tally-player"></div>
+        <div class="cowboy" id="cowboy-player"></div>
+      </div>
+      <div class="side" id="side-rival">
+        <h3>Rattlesnake Jim</h3>
+        <div class="cylwrap"><div class="cyl" id="cyl-rival"></div><div class="hub rival" id="hub-rival" aria-label="Jim's locked-in multiplier"><span>Locked</span><b id="rivalVal">–</b></div></div>
+        <div class="tally" id="tally-rival"></div>
+        <div class="cowboy" id="cowboy-rival"></div>
+      </div>
+    </div>
+    <div class="outcome" id="outcome" hidden></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <details class="info">
+    <summary>How the bonus works</summary>
+    <ul>
+      <li><b>Respins.</b> When a duel target lands, its reel and every reel to its left are held, and the reels to its right spin again. If the respin brings a new duel target, the same happens from that reel, until a respin brings none.</li>
+      <li>Three or more duel targets on the reels start the bonus, about once every 30 spins. You can also buy it for <span class="buyx">10.3</span>× your bet. Half of all bonuses pay more than 7 times your bet.</li>
+      <li>The bonus plays itself. You don't make any choices.</li>
+      <li><b>Bounty spins.</b> First you get free bounty spins: 5 for three duel targets, 7 for four and 10 for five. Only bounty symbols count in these spins. Every one that lands is added to your bounty. Every bounty spin brings at least one, and about two on average. Each symbol is worth a fixed part of your bet: boot 0.05, horseshoe 0.1, hat 0.25, sheriff star 1, gold bars 5 and diamonds 25 bets.</li>
+      <li><b>Loading.</b> You and Jim each load a six-shooter from the bullet reel, taking turns one bullet at a time. Every bullet is a multiplier (×2, ×3, ×5 and the rare ×10) or a combat bullet.</li>
+      <li><b>Steal</b> takes Jim's best multiplier the moment it's loaded. Only your gun loads them: Jim never gets one.</li>
+      <li><b>Aim</b> makes your next duel shot an aimed one. It fires your best multiplier, so that one is locked in, and it hits the other cowboy's best unfired multiplier.</li>
+      <li><b>The duel.</b> A coin flip decides who shoots first: heads you, tails Jim. Then you take turns. Every shot fires one of the shooter's own bullets, picked at random, and that bullet is <b>locked in</b>: it counts for good and can't be destroyed any more. Every shot hits and destroys one of the other cowboy's unfired bullets. You're the sharper shot: yours always take Jim's best unfired multiplier, while his hit a random one of your unfired bullets. The duel goes on until every bullet has been fired or destroyed.</li>
+      <li><b>Payout.</b> You're paid your bounty times your locked-in multipliers, added together, so ×2 and ×3 make ×5. With none locked in you get the bounty. The payout only ever goes up.</li>
+      <li><b>Winning the duel.</b> If you've locked in at least as much multiplier as Jim when the shooting stops, you win and his locked-in multipliers are added to yours. You win ties. You'll win about 4 duels in 5. Losing the duel never takes anything away: you keep your bounty times your own locked-in multipliers.</li>
+    </ul>
+  </details>
+      <details class="info">
+    <summary>Paytable</summary>
+    <p>Wins are shapes made of one symbol. Every shape on the reels pays, so one spin can pay several times, and a symbol can be part of more than one shape. Wanted posters count as every symbol.</p>
+    <div class="shapes" id="shapes"></div>
+    <p>A shape pays the symbol's value times the shape's multiplier. The symbol's value is what its Line of 3 pays. Here are the main prizes for your <b id="payBet">$10</b> bet:</p>
+    <div style="overflow-x:auto"><table class="paygrid" id="paygrid"></table></div>
+    <div class="paytable" id="paytable"></div>
+    <p><b>Void bombs.</b> Before anything else is counted, every Void bomb explodes. It blows up the 8 symbols around it, and each one pays its value (for a regular symbol, the same as its Line of 3):</p>
+    <div class="voidsizes blastvals" id="blastVals"></div>
+    <p>A bomb caught in the blast goes off too. Then the symbols above each hole fall down into it, and new symbols drop in from the top. They can make new shapes. Duel targets are never blown up.</p>
+    <p><b>Corruption.</b> DNA goo pays nothing by itself. When 3 or more goo symbols touch along their sides, the goo spreads: it and every symbol touching it become corrupted. A corrupted symbol no longer counts as what it was. Instead the corruption pays for how many symbols it covers:</p>
+    <div class="voidsizes" id="voidSizes"></div>
+    <p>Duel targets can't be corrupted. Rattlesnake Jim has been touched by it too.</p>
+    <div class="paytable" id="voidTable"></div>
+    <p>Bounty symbols only appear in bounty spins. Each one adds a fixed part of your total bet to the bounty.</p>
+    <div class="paytable" id="bountyTable"></div>
+  </details>
+</div>
+
+<script>
+// ---------- Slot engine (pure logic) ----------
+// 5 reels x 5 rows. Wins are shapes made of one symbol: lines of 3, 4 or 5 (across, down or diagonal), squares,
+// crosses, groups of 6 or more touching, V lines across all five reels, and the rare wanted shapes.
+// Every shape pays the symbol's value times the shape's multiplier, and all shapes on a spin add up.
+// The Wanted wild counts as every symbol.
+// Corruption: DNA goo pays nothing by itself. When 3 or more goo symbols touch along their sides, the patch
+// spreads: it and every symbol touching it become corrupted ('X'). Corrupted symbols are eaten: they no longer count
+// as what they were. Instead the corruption pays by how many symbols it covers. A Rift is corruption that stretches
+// unbroken from reel 1 to reel 5, and pays extra.
+// Void bombs explode: each blows up the 8 symbols around it (duel targets are safe), and every symbol blown up
+// pays its value. A bomb caught in a blast goes off too. Then the symbols above each hole fall into it, and new
+// symbols drop in from the top.
+// Duel targets hold reels: when the reels stop, the reel with the rightmost duel target and every reel left of it are
+// held and the rest spin again, as long as new duel targets keep landing (spinBoard). 3 or more start the bonus.
+// Order on every spin: reels land (with respins), bomb blasts and refills, then corruption spreads, then shapes
+// pay on the final board.
+const REELS = 5, ROWS = 5;
+const COIN = 50;      // values are in coins of bet / 50
+// value: what a Line of 3 pays, in coins
+const SYMBOLS = {
+  W:     { name: 'Wanted (wild)', weight: 5.0, value: 0 },
+  STAR:  { name: 'Sheriff star',  weight: 3,   value: 120 },
+  BAG:   { name: 'Gold sack',     weight: 4,   value: 40 },
+  SHOE:  { name: 'Horseshoe',     weight: 5,   value: 15 },
+  CACTUS:{ name: 'Cactus',        weight: 7,   value: 6.5 },
+  A:     { name: 'Ace',           weight: 11,  value: 3 },
+  K:     { name: 'King',          weight: 15,  value: 2.5 },
+  Q:     { name: 'Queen',         weight: 23,  value: 1.5 },
+  J:     { name: 'Jack',          weight: 26,  value: 1.5 },
+  S:     { name: 'Duel (bonus)',  weight: 0,   value: 0 },
+  GOO:   { name: 'DNA goo',       weight: 8.8, value: 0, corrupt: true },
+  BOMB:  { name: 'Void bomb',     weight: 0.45, value: 0, corrupt: true },
+};
+const CORRUPT_MIN = 3; // touching goo needed to spread
+const CORRUPTION = {
+  // coins paid for corruption covering 3, 4, 5 ... 15 or more symbols (the last entry covers bigger patches too)
+  pays: [8, 12, 16, 22, 30, 38, 50, 60, 75, 95, 115, 150, 200],
+  rift: 850, // extra coins when it stretches from reel 1 to reel 5
+};
+const isCorrupt = s => s === 'GOO'; // the symbols that spread
+// what a symbol pays when a bomb blows it up, in coins: its value, or these for symbols without one
+const BLAST = { W: 20, GOO: 5, mult: 1 };
+const blastValue = s => (s in BLAST ? BLAST[s] : (SYMBOLS[s] && SYMBOLS[s].value) || 0) * BLAST.mult;
+// mult: times the symbol's value. A group's multiplier depends on its size: 6, 7, 8, 9, 10, 11, 12 or more.
+const PATTERNS = {
+  line3:   { name: 'Line of 3',    mult: 1 },
+  line4:   { name: 'Line of 4',    mult: 5 },
+  square:  { name: 'Square',       mult: 5 },
+  line5:   { name: 'Line of 5',    mult: 30 },
+  cross:   { name: 'Cross',        mult: 30 },
+  group:   { name: 'Group',        mult: [5, 8, 12, 20, 30, 50, 75] },
+  v:       { name: 'V line',       mult: 50 },
+  corners: { name: 'Four corners', mult: 50 },
+  x:       { name: 'Big X',        mult: 500 },
+  frame:   { name: 'Frame',        mult: 1000 },
+};
+const GROUP_MIN = 6;
+const SCATTER_CHANCE = 0.0202; // per cell (the bonus comes about 1 in 30 spins once respins are counted)
+const BUY = { price: 10.3 }; // bonus buy price, x total bet
+const PREMIUM = ['STAR', 'BAG', 'SHOE']; // symbols that make the last reels slow down and glow
+const REG = Object.keys(SYMBOLS).filter(k => SYMBOLS[k].weight > 0);
+const PAYERS = REG.filter(k => k !== 'W' && !SYMBOLS[k].corrupt);
+const PLAIN = REG.filter(k => !SYMBOLS[k].corrupt);
+let W_ALL = REG.reduce((s, k) => s + SYMBOLS[k].weight, 0), W_PLAIN = PLAIN.reduce((s, k) => s + SYMBOLS[k].weight, 0);
+function randSymbol(rng = Math.random, reel = 0, scatter = true) {
+  if (scatter && rng() < SCATTER_CHANCE) return 'S';
+  let r = rng() * W_ALL;
+  for (const k of REG) { r -= SYMBOLS[k].weight; if (r < 0) return k; }
+  return 'J';
+}
+// a plain symbol: no duel targets and no corruption (used under the bounty spins)
+const randRegular = (rng = Math.random, reel = 0) => { let r = rng() * W_PLAIN; for (const k of PLAIN) { r -= SYMBOLS[k].weight; if (r < 0) return k; } return 'J'; };
+// grid[reel][row]
+function spinGrid(rng = Math.random) {
+  return Array.from({ length: REELS }, (_, r) => Array.from({ length: ROWS }, () => randSymbol(rng, r)));
+}
+// A base spin with duel target respins: when the reels stop, the reel with the rightmost duel target and every reel
+// left of it are held, and the reels to its right spin again. If that respin shows a new duel target, the same happens
+// from that reel, until a respin shows none (or the target is on the last reel).
+// stages[0] is the first landing; each later stage lists the reels it spun (cols) and the reel the hold reaches (held).
+const rightmostTarget = g => { for (let x = REELS - 1; x >= 0; x--) if (g[x].includes('S')) return x; return -1; };
+function spinBoard(rng) {
+  const g = spinGrid(rng), stages = [{ cols: [0, 1, 2, 3, 4], held: -1, grid: g.map(c => c.slice()) }];
+  for (let held = rightmostTarget(g); held >= 0 && held < REELS - 1;) {
+    const fresh = spinGrid(rng), cols = [];
+    for (let x = held + 1; x < REELS; x++) { g[x] = fresh[x]; cols.push(x); }
+    stages.push({ cols, held, grid: g.map(c => c.slice()) });
+    const next = rightmostTarget(g);
+    if (next <= held) break;
+    held = next;
+  }
+  return { grid: g, stages };
+}
+// Cents, so small wins add up exactly
+const toCents = v => Math.round(v * 100) / 100;
+const shapeMult = (shape, size) => { const m = PATTERNS[shape].mult; return Array.isArray(m) ? m[Math.min(size - GROUP_MIN, m.length - 1)] : m; };
+const payFor = (k, shape, size) => SYMBOLS[k].value * shapeMult(shape, size);
+
+// Fixed shapes on the 5 x 5 board, as [reel, row] cells
+const LINES = (() => { // every straight line of 3 or more cells: rows, columns and both diagonals
+  const out = [];
+  for (let i = 0; i < 5; i++) { out.push([0, 1, 2, 3, 4].map(j => [j, i])); out.push([0, 1, 2, 3, 4].map(j => [i, j])); }
+  for (let d = -2; d <= 2; d++) {
+    const a = [], b = [];
+    for (let x = 0; x < 5; x++) { const y = x + d; if (y >= 0 && y < 5) a.push([x, y]); const y2 = 4 - x + d; if (y2 >= 0 && y2 < 5) b.push([x, y2]); }
+    out.push(a, b);
+  }
+  return out;
+})();
+const VS = [[0, 1, 2, 1, 0], [1, 2, 3, 2, 1], [2, 3, 4, 3, 2], [4, 3, 2, 3, 4], [3, 2, 1, 2, 3], [2, 1, 0, 1, 2]].map(v => v.map((y, x) => [x, y]));
+const DIAG1 = [0, 1, 2, 3, 4].map(i => [i, i]), DIAG2 = [0, 1, 2, 3, 4].map(i => [i, 4 - i]);
+const XCELLS = DIAG1.concat(DIAG2.filter(([x]) => x !== 2));
+const CORNERS = [[0, 0], [4, 0], [0, 4], [4, 4]];
+const FRAME = []; for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) if (i === 0 || j === 0 || i === 4 || j === 4) FRAME.push([i, j]);
+
+// upTo: only look at the first upTo reels (used to show the win building up as the reels stop)
+// Each win: { symbol, shape, size, amount, cells, strokes } where strokes are the lines to draw through the cells
+const SIDES = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+// Corruption on a full board: which patches spread, where to, and the board afterwards
+function corruption(grid) {
+  const patches = [], seen = new Set();
+  for (let x = 0; x < REELS; x++) for (let y = 0; y < ROWS; y++) {
+    if (!isCorrupt(grid[x][y]) || seen.has(x * 5 + y)) continue;
+    const p = [[x, y]]; seen.add(x * 5 + y);
+    for (let i = 0; i < p.length; i++) for (const [dx, dy] of SIDES) { const a = p[i][0] + dx, b = p[i][1] + dy;
+      if (a >= 0 && a < REELS && b >= 0 && b < ROWS && isCorrupt(grid[a][b]) && !seen.has(a * 5 + b)) { seen.add(a * 5 + b); p.push([a, b]); } }
+    patches.push(p);
+  }
+  const spreading = patches.filter(p => p.length >= CORRUPT_MIN);
+  if (!spreading.length) return { patches, spreading, spread: [], mult: 1, after: grid };
+  const after = grid.map(c => c.slice()), spread = [];
+  for (const p of spreading) for (const [x, y] of p) after[x][y] = 'X';
+  // each touching symbol is corrupted once, by the first corrupted neighbour that reaches it
+  for (const p of spreading) for (const [x, y] of p) for (const [dx, dy] of SIDES) { const a = x + dx, b = y + dy;
+    if (a < 0 || a >= REELS || b < 0 || b >= ROWS) continue;
+    const s = after[a][b];
+    if (s && s !== 'X' && s !== 'S' && !isCorrupt(s)) { after[a][b] = 'X'; spread.push({ from: [x, y], to: [a, b], was: s }); } }
+  return { patches, spreading, spread, mult: 1, after };
+}
+// Bomb blasts on a full board. Returns each blast in the order it goes off, how the columns fall afterwards, and the
+// board at the end. hit: { cell, was, coins, chain } where chain marks a bomb that the blast sets off.
+// After the blasts, in every column the symbols left above a hole fall down into it, and new symbols drop in from the
+// top. falls: per column { x, rows, moves: [{ from, to, s }], drops: [{ y, s }] }, where rows is how many rows from the
+// top change. changed: every cell whose symbol is not the one that landed there. refill: the new symbols.
+function explode(grid, rng = Math.random) {
+  const after = grid.map(c => c.slice()), blasts = [], empty = new Set(), done = new Set(), pending = [];
+  for (let x = 0; x < REELS; x++) for (let y = 0; y < ROWS; y++) if (grid[x][y] === 'BOMB') pending.push([x, y]);
+  while (pending.length) {
+    const [x, y] = pending.shift(), id = x * 5 + y;
+    if (done.has(id)) continue;
+    done.add(id); empty.add(id);
+    const hit = [];
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+      const a = x + dx, b = y + dy, aid = a * 5 + b;
+      if ((!dx && !dy) || a < 0 || a >= REELS || b < 0 || b >= ROWS || empty.has(aid)) continue;
+      const s = after[a][b];
+      if (s === 'S') continue; // duel targets are safe
+      if (s === 'BOMB') { if (!done.has(aid)) { hit.push({ cell: [a, b], was: s, coins: 0, chain: true }); pending.unshift([a, b]); } continue; }
+      hit.push({ cell: [a, b], was: s, coins: blastValue(s) }); empty.add(aid);
+    }
+    blasts.push({ at: [x, y], hit, coins: hit.reduce((t, h) => t + h.coins, 0) });
+  }
+  const refill = [], falls = [], changed = [];
+  for (let x = 0; x < REELS; x++) {
+    let low = -1, holes = 0;
+    for (let y = 0; y < ROWS; y++) if (empty.has(x * 5 + y)) { low = y; holes++; }
+    if (low < 0) continue;
+    const keep = [];
+    for (let y = 0; y <= low; y++) if (!empty.has(x * 5 + y)) keep.push({ from: y, s: after[x][y] });
+    const moves = keep.map((k, i) => ({ from: k.from, to: holes + i, s: k.s })), drops = [];
+    for (let y = 0; y < holes; y++) { const s = randRegular(rng); drops.push({ y, s }); refill.push({ cell: [x, y], s }); }
+    drops.forEach(d => { after[x][d.y] = d.s; }); moves.forEach(m => { after[x][m.to] = m.s; });
+    for (let y = 0; y <= low; y++) changed.push([x, y]);
+    falls.push({ x, rows: low + 1, moves, drops });
+  }
+  return { blasts, refill, falls, changed, after };
+}
+// spread: let corruption spread (only once all five reels have stopped)
+function evaluate(grid, totalBet, upTo = REELS, spread = true) {
+  const coin = totalBet / COIN, wins = [], scatterCells = [];
+  const corrupt = spread && upTo >= REELS ? corruption(grid) : null;
+  if (corrupt) grid = corrupt.after;
+  const at = (x, y) => (x < upTo && x >= 0 && x < 5 && y >= 0 && y < 5) ? grid[x][y] : null;
+  const real = (s, k) => s === k;
+  const fits = (s, k) => s === k || s === 'W';
+  // the symbol (with at least one real copy) that fills all these cells, if any
+  const filled = cells => PAYERS.filter(k => { let r = false; for (const [x, y] of cells) { const s = at(x, y); if (!fits(s, k)) return false; if (real(s, k)) r = true; } return r; });
+  const add = (k, shape, size, cells, strokes, coins = payFor(k, shape, size), boost = 1) =>
+    wins.push({ symbol: k, shape, size, boost, amount: toCents(coins * coin * boost), cells, strokes });
+  for (let x = 0; x < upTo; x++) for (let y = 0; y < ROWS; y++) if (grid[x][y] === 'S') scatterCells.push([x, y]);
+  // lines: the longest unbroken run of each symbol along every straight line
+  const realOf = real;
+  for (const line of LINES) for (const k of PAYERS) {
+    let run = [], real = false;
+    const flush = () => { if (run.length >= 3 && real) add(k, 'line' + Math.min(5, run.length), run.length, run, [run]); run = []; real = false; };
+    for (const [x, y] of line) { const s = at(x, y); if (fits(s, k)) { run.push([x, y]); if (realOf(s, k)) real = true; } else flush(); }
+    flush();
+  }
+  // squares: every 2 x 2 block
+  for (let x = 0; x < 4; x++) for (let y = 0; y < 4; y++) { const c = [[x, y], [x + 1, y], [x, y + 1], [x + 1, y + 1]]; for (const k of filled(c)) add(k, 'square', 4, c, []); }
+  // crosses: a symbol with the same symbol on all four sides
+  for (let x = 1; x < 4; x++) for (let y = 1; y < 4; y++) { const c = [[x, y], [x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]; for (const k of filled(c)) add(k, 'cross', 5, c, [[[x, y - 1], [x, y], [x, y + 1]], [[x - 1, y], [x, y], [x + 1, y]]]); }
+  // groups: 6 or more touching along their sides
+  for (const k of PAYERS) {
+    const done = new Set();
+    for (let x = 0; x < upTo; x++) for (let y = 0; y < ROWS; y++) {
+      if (!real(grid[x][y], k) || done.has(x * 5 + y)) continue;
+      const comp = [[x, y]], seen = new Set([x * 5 + y]); done.add(x * 5 + y);
+      for (let i = 0; i < comp.length; i++) { const [a, b] = comp[i];
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const s = at(a + dx, b + dy), id = (a + dx) * 5 + b + dy;
+          if (s && fits(s, k) && !seen.has(id)) { seen.add(id); comp.push([a + dx, b + dy]); if (real(s, k)) done.add(id); } } }
+      if (comp.length >= GROUP_MIN) add(k, 'group', comp.length, comp, []);
+    }
+  }
+  // corruption pays by size, doubled by each eye, plus the Rift when it reaches from reel 1 to reel 5
+  if (corrupt) {
+    const seen = new Set();
+    for (let x = 0; x < REELS; x++) for (let y = 0; y < ROWS; y++) {
+      if (grid[x][y] !== 'X' || seen.has(x * 5 + y)) continue;
+      const comp = [[x, y]]; seen.add(x * 5 + y);
+      for (let i = 0; i < comp.length; i++) for (const [dx, dy] of SIDES) { const a = comp[i][0] + dx, b = comp[i][1] + dy;
+        if (at(a, b) === 'X' && !seen.has(a * 5 + b)) { seen.add(a * 5 + b); comp.push([a, b]); } }
+      const t = CORRUPTION.pays, n = comp.length;
+      add('VOID', 'corrupt', n, comp, [], t[Math.max(0, Math.min(n - CORRUPT_MIN, t.length - 1))]);
+      if (comp.some(([a]) => a === 0) && comp.some(([a]) => a === REELS - 1)) add('VOID', 'rift', n, comp, [], CORRUPTION.rift);
+    }
+  }
+  // V lines across all five reels, and the wanted shapes
+  for (const v of VS) for (const k of filled(v)) add(k, 'v', 5, v, [v]);
+  for (const k of filled(CORNERS)) add(k, 'corners', 4, CORNERS, []);
+  for (const k of filled(XCELLS)) add(k, 'x', 9, XCELLS, [DIAG1, DIAG2]);
+  for (const k of filled(FRAME)) add(k, 'frame', 16, FRAME, []);
+  const sc = Math.min(scatterCells.length, 5);
+  const bonus = sc >= 3 ? { count: sc, cells: scatterCells } : null;
+  return { wins, lineTotal: toCents(wins.reduce((s, w) => s + w.amount, 0)), bonus, corrupt: corrupt && corrupt.spreading.length ? corrupt : null };
+}
+// A whole spin: bomb blasts and refills first, then corruption spreads, then shapes pay on the final board.
+// final: the board as it ends up. blast: what the bombs did (null when none landed).
+function spinResult(grid, totalBet, rng = Math.random) {
+  const blast = explode(grid, rng), res = evaluate(blast.after, totalBet), coin = totalBet / COIN;
+  blast.blasts.forEach(b => { if (b.coins > 0) res.wins.push({ symbol: 'BOMB', shape: 'blast', size: b.hit.filter(h => h.coins > 0).length, boost: 1,
+    amount: toCents(b.coins * coin), cells: [b.at].concat(b.hit.map(h => h.cell)), strokes: [] }); });
+  res.lineTotal = toCents(res.wins.reduce((t, w) => t + w.amount, 0));
+  res.blast = blast.blasts.length ? blast : null;
+  res.final = res.corrupt ? res.corrupt.after : blast.after;
+  return res;
+}
+// How many of a symbol (wilds included) are showing on the first upTo reels
+function countOf(grid, k, upTo = REELS) {
+  let n = 0;
+  for (let r = 0; r < upTo; r++) for (const s of grid[r]) if (s === k || s === 'W') n++;
+  return n;
+}
+
+// ---------- Bonus engine ----------
+// Stage 0, bounty spins: free spins where cowboy cash symbols land on the reels. Each one adds its value to the pot.
+// Stage 1, loading: each six-shooter gets 6 bullets (multipliers and combat bullets), loaded one at a time, alternating.
+// Stage 2, showdown: a coin flip picks who shoots first. Each shot fires one of the shooter's own bullets, which locks
+// it in for good, and always destroys one of the other cowboy's unfired bullets. It runs until every bullet is
+// fired or destroyed.
+// Payout: pot x your locked-in multipliers (x1 if you locked none). It can only go up. Win the duel (more locked-in
+// multiplier than Jim, or the same) and his locked-in multipliers are added to yours.
+const BONUS = {
+  chambers: 6,
+  sharp: { player: true, rival: false }, // a sharp shooter always hits the other's best unfired multiplier
+  unit: 0.05,   // value units: a cash symbol worth v pays v x unit x bet
+  bullets: [
+    { k: 'mult', v: 2, w: 12 }, { k: 'mult', v: 3, w: 5 }, { k: 'mult', v: 5, w: 1.6 }, { k: 'mult', v: 10, w: 0.4 },
+    { k: 'thief', v: 0, w: 4 }, { k: 'deadeye', v: 0, w: 4 },
+  ],
+  // Jim's gun never loads Steal bullets, which tips the duel your way (you win about 4 in 5)
+  rivalBullets: [
+    { k: 'mult', v: 2, w: 12 }, { k: 'mult', v: 3, w: 5 }, { k: 'mult', v: 5, w: 1.6 }, { k: 'mult', v: 10, w: 0.4 },
+    { k: 'deadeye', v: 0, w: 4 },
+  ],
+};
+const BOUNTY = {
+  spins: { 3: 5, 4: 7, 5: 10 },  // free spins for 3, 4, 5+ duel targets
+  cashChance: 0.069,               // chance each cell shows a cash symbol
+  everySpin: true,                 // every bounty spin brings at least one
+  // boot 0.05 bet, horseshoe 0.1, hat 0.25, sheriff star 1, gold bars 5, diamonds 25
+  cash: [{ v: 1, w: 69 }, { v: 2, w: 29 }, { v: 5, w: 4.5 }, { v: 20, w: 1 }, { v: 100, w: 0.18 }, { v: 500, w: 0.026 }],
+};
+function pick(list, rng) {
+  const tot = list.reduce((s, d) => s + d.w, 0);
+  let r = rng() * tot;
+  for (const d of list) { r -= d.w; if (r < 0) return d; }
+  return list[0];
+}
+// One bounty spin. Cash cells are written as 'C' + value, e.g. 'C25'.
+// If the pot would still be empty after the last spin, that spin is given one cash symbol.
+function bountyGrid(rng = Math.random, forceOne = false) {
+  const grid = Array.from({ length: REELS }, (_, r) => Array.from({ length: ROWS }, () => randRegular(rng, r)));
+  const cash = [];
+  for (let r = 0; r < REELS; r++) for (let c = 0; c < ROWS; c++) if (rng() < BOUNTY.cashChance) { const v = pick(BOUNTY.cash, rng).v; grid[r][c] = 'C' + v; cash.push({ reel: r, row: c, v }); }
+  if (forceOne && !cash.length) { const r = Math.floor(rng() * REELS), c = Math.floor(rng() * ROWS), v = pick(BOUNTY.cash, rng).v; grid[r][c] = 'C' + v; cash.push({ reel: r, row: c, v }); }
+  return { grid, cash, total: cash.reduce((s, x) => s + x.v, 0) };
+}
+function bountySpins(sc, rng = Math.random) {
+  const n = BOUNTY.spins[Math.max(3, Math.min(5, sc))], spins = [];
+  let pot = 0;
+  for (let i = 0; i < n; i++) { const s = bountyGrid(rng, BOUNTY.everySpin || (i === n - 1 && pot === 0)); pot += s.total; spins.push(s); }
+  return { spins, pot };
+}
+const other = side => side === 'player' ? 'rival' : 'player';
+function newBonus(pot, rng = Math.random) {
+  return {
+    pot,                            // in value units
+    cyl: { player: Array(BONUS.chambers).fill(null), rival: Array(BONUS.chambers).fill(null) },
+    step: 0,                        // loading step, 0..13
+    sure: { player: 0, rival: 0 },  // aimed shots this side has banked
+    first: rng() < 0.5 ? 'player' : 'rival', // the coin flip: heads you, tails Jim
+    turn: null, over: false,
+  };
+}
+const isValue = b => b && b.k === 'mult';
+// still in the drum and not fired yet: can be fired by its owner, or destroyed by the other cowboy
+const live = b => b && b.k !== 'gone' && b.k !== 'stolen' && !b.locked;
+const canFire = (b, side) => b.cyl[side].some(live);
+// locked: multiplier already fired (safe). unfired: multiplier still in the drum (at risk).
+function tally(b, side) {
+  let locked = 0, unfired = 0;
+  for (const x of b.cyl[side]) { if (!isValue(x)) continue; if (x.locked) locked += x.v; else if (live(x)) unfired += x.v; }
+  return { locked, unfired, mult: Math.max(1, locked) };
+}
+// the most valuable unfired multiplier
+function bestChamber(b, side) {
+  let best = -1, bv = 0;
+  b.cyl[side].forEach((x, i) => { if (isValue(x) && live(x) && x.v > bv) { bv = x.v; best = i; } });
+  return best;
+}
+function loadNext(b, rng = Math.random) {
+  const side = b.step % 2 === 0 ? 'player' : 'rival', chamber = Math.floor(b.step / 2), foe = other(side);
+  const d = pick(side === 'rival' && BONUS.rivalBullets ? BONUS.rivalBullets : BONUS.bullets, rng), bullet = { k: d.k, v: d.v };
+  const ev = { side, chamber, bullet };
+  if (bullet.k === 'thief') {
+    const ti = bestChamber(b, foe); // steal his best multiplier
+    if (ti >= 0) {
+      ev.stole = { chamber: ti, bullet: b.cyl[foe][ti] };
+      b.cyl[side][chamber] = { ...b.cyl[foe][ti], stolen: true };
+      b.cyl[foe][ti] = { k: 'stolen' };
+    } else { ev.fizzled = true; b.cyl[side][chamber] = { k: 'thief' }; }
+  } else {
+    if (bullet.k === 'deadeye') b.sure[side]++;
+    b.cyl[side][chamber] = bullet;
+  }
+  b.step++;
+  if (b.step >= BONUS.chambers * 2) b.turn = b.first;
+  return ev;
+}
+const loadingDone = b => b.step >= BONUS.chambers * 2;
+// One turn of the showdown. Returns what happened:
+// { side, fired, bullet, blank } a blank was fired (locked in, does no damage)
+// { side, fired, bullet, miss | chamber+lost (+deadeye), aimed? } a live round was fired
+// Every shot hits. Your shots take Jim's best unfired multiplier; his take a random one of your unfired bullets
+// (his aimed shots take your best). If there's nothing left to hit, the shot only locks in the fired bullet.
+function shoot(b, rng = Math.random) {
+  const side = b.turn, foe = other(side);
+  const ev = { side };
+  // an aimed shot fires your own best multiplier (locking it in) and takes his best one
+  const aimed = b.sure[side] > 0;
+  if (aimed) { b.sure[side]--; ev.aimed = true; }
+  const mine = b.cyl[side].map((x, i) => live(x) ? i : -1).filter(i => i >= 0);
+  let i = aimed ? bestChamber(b, side) : -1;
+  if (i < 0) i = mine[Math.floor(rng() * mine.length)];
+  b.cyl[side][i] = { ...b.cyl[side][i], locked: true };
+  ev.fired = i; ev.bullet = b.cyl[side][i];
+  if (ev.bullet.k === 'blank') ev.blank = true;
+  else {
+    const best = aimed || BONUS.sharp[side] ? bestChamber(b, foe) : -1;
+    if (best >= 0) { ev.chamber = best; if (aimed) ev.deadeye = true; else ev.sharp = true; }
+    else {
+      const opts = b.cyl[foe].map((x, j) => live(x) ? j : -1).filter(j => j >= 0);
+      if (!opts.length) ev.empty = true;
+      else ev.chamber = opts[Math.floor(rng() * opts.length)];
+    }
+    if (ev.chamber !== undefined) {
+      ev.lost = b.cyl[foe][ev.chamber];
+      b.cyl[foe][ev.chamber] = { k: 'gone', was: ev.lost };
+    }
+  }
+  if (canFire(b, foe)) b.turn = foe;
+  else if (canFire(b, side)) b.turn = side;
+  else b.over = true;
+  return ev;
+}
+function result(b) {
+  const me = tally(b, 'player').locked, him = tally(b, 'rival').locked;
+  const won = me > 0 && me >= him, mult = Math.max(1, won ? me + him : me); // you win ties
+  return { won, tie: me === him, me, him, mult, payoutUnits: b.pot * mult };
+}
+// The whole bonus in one go (used by instant mode and the simulator). sc = number of duel targets.
+function playBonus(sc = 3, rng = Math.random) {
+  const bounty = bountySpins(sc, rng);
+  const b = newBonus(bounty.pot, rng);
+  while (!loadingDone(b)) loadNext(b, rng);
+  while (!b.over) shoot(b, rng);
+  return { bounty, b, ...result(b) };
+}
+
+if (typeof module !== 'undefined') module.exports = { spinBoard, rightmostTarget, SCATTER_CHANCE, SYMBOLS, PATTERNS, GROUP_MIN, CORRUPT_MIN, CORRUPTION, BLAST, isCorrupt, corruption, explode, spinResult, blastValue, REELS, ROWS, COIN, PREMIUM, LINES, VS, spinGrid, evaluate, countOf, payFor, BONUS, BOUNTY, BUY, bountyGrid, bountySpins, newBonus, loadNext, loadingDone, shoot, result, tally, playBonus, live };
+
+
+// ---------- Art (placeholder SVG) ----------
+const ART = {
+  W: `<svg viewBox="0 0 100 100"><rect x="14" y="8" width="72" height="84" rx="3" fill="#e8c98d" stroke="#6b4422" stroke-width="3"/><text x="50" y="30" text-anchor="middle" font-family="Rye,serif" font-size="15" fill="#3a2010">WANTED</text><circle cx="50" cy="52" r="13" fill="#3a2010"/><path d="M33 46h34l-5-5H38z" fill="#3a2010"/><text x="50" y="84" text-anchor="middle" font-family="Rye,serif" font-size="16" fill="#b83a2c">WILD</text></svg>`,
+  S: `<svg viewBox="0 0 100 100"><circle cx="50" cy="48" r="38" fill="#b83a2c"/><circle cx="50" cy="48" r="28" fill="#f6ead0"/><circle cx="50" cy="48" r="18" fill="#b83a2c"/><circle cx="50" cy="48" r="8" fill="#f6ead0"/><rect x="12" y="74" width="76" height="20" rx="4" fill="#2d1e12"/><text x="50" y="89" text-anchor="middle" font-family="Rye,serif" font-size="15" fill="#f0c46c">DUEL</text></svg>`,
+  STAR: `<svg viewBox="0 0 100 100"><g fill="#d6a046" stroke="#7a5320" stroke-width="2.5"><polygon points="50,6 61,31 89,28 72,50 89,72 61,69 50,94 39,69 11,72 28,50 11,28 39,31"/></g><g fill="#d6a046" stroke="#7a5320" stroke-width="2"><circle cx="50" cy="7" r="5"/><circle cx="89" cy="28" r="5"/><circle cx="89" cy="72" r="5"/><circle cx="50" cy="93" r="5"/><circle cx="11" cy="72" r="5"/><circle cx="11" cy="28" r="5"/></g><circle cx="50" cy="50" r="15" fill="#f0c46c" stroke="#7a5320" stroke-width="2"/><text x="50" y="56" text-anchor="middle" font-family="Rye,serif" font-size="13" fill="#7a5320">LAW</text></svg>`,
+  BAG: `<svg viewBox="0 0 100 100"><path d="M38 22 L62 22 L56 32 C80 42 86 70 78 82 C70 94 30 94 22 82 C14 70 20 42 44 32 Z" fill="#a9784a" stroke="#5b3a1d" stroke-width="3"/><path d="M40 30 Q50 36 60 30" stroke="#5b3a1d" stroke-width="4" fill="none"/><text x="50" y="78" text-anchor="middle" font-family="Rye,serif" font-size="34" fill="#f0c46c" stroke="#5b3a1d" stroke-width="1">$</text></svg>`,
+  SHOE: `<svg viewBox="0 0 100 100"><path d="M28 86 L22 50 C18 24 82 24 78 50 L72 86" fill="none" stroke="#7a7f86" stroke-width="16" stroke-linecap="round"/><path d="M28 86 L22 50 C18 24 82 24 78 50 L72 86" fill="none" stroke="#b9bec4" stroke-width="8" stroke-linecap="round"/><g fill="#3d4247"><circle cx="24" cy="70" r="3"/><circle cx="23" cy="52" r="3"/><circle cx="76" cy="70" r="3"/><circle cx="77" cy="52" r="3"/><circle cx="35" cy="34" r="3"/><circle cx="65" cy="34" r="3"/></g></svg>`,
+  CACTUS: `<svg viewBox="0 0 100 100"><g fill="#5e8a45" stroke="#2f4a20" stroke-width="3"><rect x="40" y="10" width="20" height="80" rx="10"/><path d="M40 58 H28 A8 8 0 0 1 20 50 V34 A6 6 0 0 1 32 34 V46 H40"/><path d="M60 46 H70 V26 A6 6 0 0 1 82 26 V42 A8 8 0 0 1 74 50 H60"/></g><rect x="22" y="88" width="56" height="6" rx="3" fill="#c98a4b"/></svg>`,
+  A: card('A', '#b83a2c'), K: card('K', '#2d1e12'), Q: card('Q', '#3d6b78'), J: card('J', '#5e8a45'),
+  // Corruption: DNA goo that spreads, a spiky Void bomb that explodes, and what a symbol becomes once the corruption has eaten it
+  GOO: `<svg viewBox="0 0 100 100"><ellipse cx="36" cy="88" rx="28" ry="8" fill="#5a1d94" stroke="#2a0f45" stroke-width="3"/><g transform="rotate(35 50 50)" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M50.0 4.0Q45.9 6.6 43.9 7.8Q42.0 9.1 40.3 10.4Q38.7 11.7 37.4 12.9Q36.1 14.2 35.3 15.5Q34.5 16.8 34.3 18.1Q34.0 19.3 34.3 20.6Q34.5 21.9 35.3 23.2Q36.1 24.4 37.4 25.7Q38.7 27.0 40.3 28.3Q42.0 29.6 43.9 30.8Q45.9 32.1 47.9 33.4Q50.0 34.7 52.1 35.9Q54.1 37.2 56.1 38.5Q58.0 39.8 59.7 41.1Q61.3 42.3 62.6 43.6Q63.9 44.9 64.7 46.2Q65.5 47.4 65.7 48.7Q66.0 50.0 65.7 51.3Q65.5 52.6 64.7 53.8Q63.9 55.1 62.6 56.4Q61.3 57.7 59.7 58.9Q58.0 60.2 56.1 61.5Q54.1 62.8 52.1 64.1Q50.0 65.3 47.9 66.6Q45.9 67.9 43.9 69.2Q42.0 70.4 40.3 71.7Q38.7 73.0 37.4 74.3Q36.1 75.6 35.3 76.8Q34.5 78.1 34.3 79.4Q34.0 80.7 34.3 81.9Q34.5 83.2 35.3 84.5Q36.1 85.8 37.4 87.1Q38.7 88.3 40.3 89.6Q42.0 90.9 43.9 92.2Q45.9 93.4 47.9 94.7L50.0 96.0" stroke="#2a0f45" stroke-width="10"/><path d="M50.0 4.0Q45.9 6.6 43.9 7.8Q42.0 9.1 40.3 10.4Q38.7 11.7 37.4 12.9Q36.1 14.2 35.3 15.5Q34.5 16.8 34.3 18.1Q34.0 19.3 34.3 20.6Q34.5 21.9 35.3 23.2Q36.1 24.4 37.4 25.7Q38.7 27.0 40.3 28.3Q42.0 29.6 43.9 30.8Q45.9 32.1 47.9 33.4Q50.0 34.7 52.1 35.9Q54.1 37.2 56.1 38.5Q58.0 39.8 59.7 41.1Q61.3 42.3 62.6 43.6Q63.9 44.9 64.7 46.2Q65.5 47.4 65.7 48.7Q66.0 50.0 65.7 51.3Q65.5 52.6 64.7 53.8Q63.9 55.1 62.6 56.4Q61.3 57.7 59.7 58.9Q58.0 60.2 56.1 61.5Q54.1 62.8 52.1 64.1Q50.0 65.3 47.9 66.6Q45.9 67.9 43.9 69.2Q42.0 70.4 40.3 71.7Q38.7 73.0 37.4 74.3Q36.1 75.6 35.3 76.8Q34.5 78.1 34.3 79.4Q34.0 80.7 34.3 81.9Q34.5 83.2 35.3 84.5Q36.1 85.8 37.4 87.1Q38.7 88.3 40.3 89.6Q42.0 90.9 43.9 92.2Q45.9 93.4 47.9 94.7L50.0 96.0" stroke="#7b2fbf" stroke-width="6"/><path d="M58.0 9.1H42.0" stroke="#e2b8ff" stroke-width="4.5"/><path d="M63.9 14.2H36.1" stroke="#ff7ae6" stroke-width="4.5"/><path d="M66.0 19.3H34.0" stroke="#e2b8ff" stroke-width="4.5"/><path d="M63.9 24.4H36.1" stroke="#ff7ae6" stroke-width="4.5"/><path d="M58.0 29.6H42.0" stroke="#e2b8ff" stroke-width="4.5"/><path d="M42.0 39.8H58.0" stroke="#ff7ae6" stroke-width="4.5"/><path d="M36.1 44.9H63.9" stroke="#e2b8ff" stroke-width="4.5"/><path d="M34.0 50.0H66.0" stroke="#ff7ae6" stroke-width="4.5"/><path d="M36.1 55.1H63.9" stroke="#e2b8ff" stroke-width="4.5"/><path d="M42.0 60.2H58.0" stroke="#ff7ae6" stroke-width="4.5"/><path d="M58.0 70.4H42.0" stroke="#e2b8ff" stroke-width="4.5"/><path d="M63.9 75.6H36.1" stroke="#ff7ae6" stroke-width="4.5"/><path d="M66.0 80.7H34.0" stroke="#e2b8ff" stroke-width="4.5"/><path d="M63.9 85.8H36.1" stroke="#ff7ae6" stroke-width="4.5"/><path d="M58.0 90.9H42.0" stroke="#e2b8ff" stroke-width="4.5"/><path d="M50.0 4.0Q54.1 6.6 56.1 7.8Q58.0 9.1 59.7 10.4Q61.3 11.7 62.6 12.9Q63.9 14.2 64.7 15.5Q65.5 16.8 65.7 18.1Q66.0 19.3 65.7 20.6Q65.5 21.9 64.7 23.2Q63.9 24.4 62.6 25.7Q61.3 27.0 59.7 28.3Q58.0 29.6 56.1 30.8Q54.1 32.1 52.1 33.4Q50.0 34.7 47.9 35.9Q45.9 37.2 43.9 38.5Q42.0 39.8 40.3 41.1Q38.7 42.3 37.4 43.6Q36.1 44.9 35.3 46.2Q34.5 47.4 34.3 48.7Q34.0 50.0 34.3 51.3Q34.5 52.6 35.3 53.8Q36.1 55.1 37.4 56.4Q38.7 57.7 40.3 58.9Q42.0 60.2 43.9 61.5Q45.9 62.8 47.9 64.1Q50.0 65.3 52.1 66.6Q54.1 67.9 56.1 69.2Q58.0 70.4 59.7 71.7Q61.3 73.0 62.6 74.3Q63.9 75.6 64.7 76.8Q65.5 78.1 65.7 79.4Q66.0 80.7 65.7 81.9Q65.5 83.2 64.7 84.5Q63.9 85.8 62.6 87.1Q61.3 88.3 59.7 89.6Q58.0 90.9 56.1 92.2Q54.1 93.4 52.1 94.7L50.0 96.0" stroke="#2a0f45" stroke-width="11"/><path d="M50.0 4.0Q54.1 6.6 56.1 7.8Q58.0 9.1 59.7 10.4Q61.3 11.7 62.6 12.9Q63.9 14.2 64.7 15.5Q65.5 16.8 65.7 18.1Q66.0 19.3 65.7 20.6Q65.5 21.9 64.7 23.2Q63.9 24.4 62.6 25.7Q61.3 27.0 59.7 28.3Q58.0 29.6 56.1 30.8Q54.1 32.1 52.1 33.4Q50.0 34.7 47.9 35.9Q45.9 37.2 43.9 38.5Q42.0 39.8 40.3 41.1Q38.7 42.3 37.4 43.6Q36.1 44.9 35.3 46.2Q34.5 47.4 34.3 48.7Q34.0 50.0 34.3 51.3Q34.5 52.6 35.3 53.8Q36.1 55.1 37.4 56.4Q38.7 57.7 40.3 58.9Q42.0 60.2 43.9 61.5Q45.9 62.8 47.9 64.1Q50.0 65.3 52.1 66.6Q54.1 67.9 56.1 69.2Q58.0 70.4 59.7 71.7Q61.3 73.0 62.6 74.3Q63.9 75.6 64.7 76.8Q65.5 78.1 65.7 79.4Q66.0 80.7 65.7 81.9Q65.5 83.2 64.7 84.5Q63.9 85.8 62.6 87.1Q61.3 88.3 59.7 89.6Q58.0 90.9 56.1 92.2Q54.1 93.4 52.1 94.7L50.0 96.0" stroke="#b456ff" stroke-width="7"/><path d="M50.0 4.0Q54.1 6.6 56.1 7.8Q58.0 9.1 59.7 10.4Q61.3 11.7 62.6 12.9Q63.9 14.2 64.7 15.5Q65.5 16.8 65.7 18.1Q66.0 19.3 65.7 20.6Q65.5 21.9 64.7 23.2Q63.9 24.4 62.6 25.7Q61.3 27.0 59.7 28.3Q58.0 29.6 56.1 30.8Q54.1 32.1 52.1 33.4Q50.0 34.7 47.9 35.9Q45.9 37.2 43.9 38.5Q42.0 39.8 40.3 41.1Q38.7 42.3 37.4 43.6Q36.1 44.9 35.3 46.2Q34.5 47.4 34.3 48.7Q34.0 50.0 34.3 51.3Q34.5 52.6 35.3 53.8Q36.1 55.1 37.4 56.4Q38.7 57.7 40.3 58.9Q42.0 60.2 43.9 61.5Q45.9 62.8 47.9 64.1Q50.0 65.3 52.1 66.6Q54.1 67.9 56.1 69.2Q58.0 70.4 59.7 71.7Q61.3 73.0 62.6 74.3Q63.9 75.6 64.7 76.8Q65.5 78.1 65.7 79.4Q66.0 80.7 65.7 81.9Q65.5 83.2 64.7 84.5Q63.9 85.8 62.6 87.1Q61.3 88.3 59.7 89.6Q58.0 90.9 56.1 92.2Q54.1 93.4 52.1 94.7L50.0 96.0" stroke="#f3e0ff" stroke-width="2" opacity=".6" transform="translate(-1.5 0)"/></g><path d="M16 88C16 78 28 76 34 80C40 74 54 78 54 88Z" fill="#a63df0" stroke="#2a0f45" stroke-width="3" stroke-linejoin="round"/><path d="M60 52q2 8 0 13" stroke="#b456ff" stroke-width="4.5" stroke-linecap="round" fill="none"/><circle cx="60" cy="71" r="3" fill="#b456ff" stroke="#2a0f45" stroke-width="1.5"/><circle cx="22" cy="22" r="3.5" fill="none" stroke="#c58cff" stroke-width="2.2"/><circle cx="84" cy="62" r="2.6" fill="#c58cff"/><circle cx="30" cy="40" r="2" fill="#e2b8ff"/></svg>`,
+  BOMB: `<svg viewBox="0 0 100 100"><path d="M50.0 12.0L57.6 26.1L71.6 18.3L70.4 34.3L86.4 35.4L76.7 48.2L89.6 57.7L74.6 63.2L80.2 78.2L64.6 74.7L61.3 90.4L50.0 79.0L38.7 90.4L35.4 74.7L19.8 78.2L25.4 63.2L10.4 57.7L23.3 48.2L13.6 35.4L29.6 34.3L28.4 18.3L42.4 26.1Z" fill="#5a1d94" stroke="#2a0f45" stroke-width="3" stroke-linejoin="round"/><circle cx="50" cy="52" r="22" fill="#9b4dff" stroke="#2a0f45" stroke-width="3"/><circle cx="50" cy="52" r="13" fill="#ff7ae6" opacity=".65"/><circle cx="43" cy="45" r="5.5" fill="#efdcff"/><circle cx="58" cy="60" r="3" fill="#efdcff" opacity=".8"/><circle cx="15" cy="17" r="5" fill="#9b4dff" stroke="#2a0f45" stroke-width="2"/><circle cx="87" cy="88" r="4" fill="#9b4dff" stroke="#2a0f45" stroke-width="2"/><circle cx="88" cy="15" r="2.6" fill="#c58cff"/></svg>`,
+  X: `<svg viewBox="0 0 100 100"><path d="M18 30Q28 10 50 16Q74 8 84 30Q96 52 82 72Q72 92 50 86Q26 94 16 72Q4 50 18 30Z" fill="#5b1e8f" stroke="#2a0f45" stroke-width="3"/><path d="M28 36Q36 22 52 26Q68 22 74 38Q82 54 70 66Q60 78 48 74Q32 78 26 64Q20 50 28 36Z" fill="#8b3dff" opacity=".8"/><polygon points="50,30 58,46 50,70 42,46" fill="#e3c4ff"/><polygon points="32,50 38,44 42,56 36,60" fill="#c58cff"/><polygon points="66,48 72,54 66,64 61,56" fill="#c58cff"/><path d="M24 80C20 88 22 92 18 96M78 80C82 88 80 92 84 96" stroke="#5b1e8f" stroke-width="5" stroke-linecap="round" fill="none"/></svg>`,
+};
+ART.VOID = ART.X;
+const symName = k => k === 'VOID' ? 'Corruption' : SYMBOLS[k].name;
+function card(l, c) { return `<svg viewBox="0 0 100 100"><text x="50" y="72" text-anchor="middle" font-family="Rye,serif" font-size="62" fill="${c}" stroke="#0003" stroke-width="1">${l}</text></svg>`; }
+// Rattlesnake Jim has been touched by the corruption: violet skin, glowing eyes, purple veins and crystals
+function cowboySVG(rival) {
+  const hat = rival ? '#1f1611' : '#e3d2ae', shirt = rival ? '#3a2a22' : '#3d6b78', scarf = rival ? '#7b2fbf' : '#d6a046';
+  const skin = rival ? '#a58fb8' : '#c99a72';
+  const corrupt = rival ? `<g class="jimvoid"><path d="M30 46C20 40 16 30 8 30M30 60C18 62 12 72 4 70" stroke="#7b2fbf" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <polygon points="32,44 26,34 36,40" fill="#c58cff"/><polygon points="36,46 34,36 40,42" fill="#e3c4ff"/>
+    <path d="M44 30l3 6M55 38l-4 4" stroke="#7b2fbf" stroke-width="1.5"/>
+    <circle cx="46" cy="31" r="2.2" fill="#f0c8ff"/><circle cx="54" cy="31" r="2.2" fill="#f0c8ff"/>
+    <circle cx="46" cy="31" r="4.5" fill="#c044ff" opacity=".35"/><circle cx="54" cy="31" r="4.5" fill="#c044ff" opacity=".35"/></g>` : '';
+  const dir = rival ? -1 : 1;
+  return `<svg viewBox="0 0 100 120"><g transform="translate(50 0) scale(${dir} 1) translate(-50 0)">
+    <rect x="38" y="74" width="10" height="40" fill="#2d2420"/><rect x="52" y="74" width="10" height="40" fill="#2d2420"/>
+    <path d="M32 44h36l4 34H28z" fill="${shirt}"/><path d="M42 44h16l-8 10z" fill="${scarf}"/>
+    <rect x="66" y="48" width="26" height="8" rx="4" fill="${shirt}"/><rect x="86" y="44" width="12" height="6" fill="#222"/><rect x="88" y="48" width="5" height="8" fill="#5b3a1d"/>
+    <circle cx="50" cy="32" r="12" fill="${skin}"/><rect x="40" y="28" width="20" height="5" fill="#0002"/>
+    <ellipse cx="50" cy="22" rx="24" ry="5" fill="${hat}"/><path d="M38 22 C38 6 62 6 62 22z" fill="${hat}"/><rect x="38" y="16" width="24" height="3" fill="${scarf}"/>
+    ${corrupt}
+  </g></svg>`;
+}
+
+// ---------- State ----------
+const $ = id => document.getElementById(id);
+const BETS = [10, 20, 50, 100];
+let balance = 1000, bet = 10, spinning = false, grid = spinGrid(), soundOn = true, instant = false, spinPay = 0;
+try { instant = localStorage.getItem('hnr_instant') === '1'; } catch (e) {}
+try { const b = parseFloat(localStorage.getItem('hnr_balance')); if (b >= 0) balance = toCents(b); } catch (e) {}
+const fmt = n => Math.round(n).toLocaleString('en-US');
+// Session stats. "Started with" counts the opening balance plus any test top-ups.
+let stats = null;
+try { stats = JSON.parse(localStorage.getItem('hnr_stats')); } catch (e) {}
+if (!stats || typeof stats.spins !== 'number') stats = { spins: 0, start: balance, wagered: 0, paid: 0, duels: 0 };
+function save() {
+  balance = toCents(balance); stats.paid = toCents(stats.paid);
+  try { localStorage.setItem('hnr_balance', String(balance)); localStorage.setItem('hnr_stats', JSON.stringify(stats)); } catch (e) {}
+  renderStats();
+}
+function renderStats() {
+  const net = toCents(balance - stats.start);
+  $('stSpins').textContent = fmt(stats.spins);
+  $('stStart').textContent = money(stats.start);
+  $('stNow').textContent = money(balance);
+  $('stNet').textContent = (net > 0 ? '+' : net < 0 ? '−' : '') + money(Math.abs(net));
+  $('stNet').className = net > 0 ? 'up' : net < 0 ? 'down' : '';
+  $('stRtp').textContent = stats.wagered ? (stats.paid / stats.wagered * 100).toFixed(1) + '%' : '–';
+  $('stDuels').textContent = fmt(stats.duels);
+}
+function updateMeters() {
+  countTo($('balance'), balance, instant ? 0 : 500); $('betShow').textContent = money(bet);
+  $('spin').disabled = spinning || balance < bet;
+  $('buy').disabled = spinning || balance < toCents(BUY.price * bet);
+  $('buyPrice').textContent = money(toCents(BUY.price * bet));
+  if (spinning) { $('buyConfirm').hidden = true; $('buy').hidden = false; }
+  $('refill').disabled = spinning;
+  document.querySelectorAll('#bets button').forEach(b => { b.setAttribute('aria-pressed', String(+b.dataset.v === bet)); b.disabled = spinning; });
+}
+
+// ---------- Sound (all synthesized with Web Audio) ----------
+let actx = null, master = null, verb = null, noiseB = null;
+function impulse(sec, decay) {
+  const n = actx.sampleRate * sec, b = actx.createBuffer(2, n, actx.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, decay); }
+  return b;
+}
+function ac() {
+  if (!actx) {
+    try {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      master = actx.createGain(); master.gain.value = soundOn ? 0.9 : 0;
+      const comp = actx.createDynamicsCompressor(); master.connect(comp); comp.connect(actx.destination);
+      verb = actx.createConvolver(); verb.buffer = impulse(2.2, 3);
+      const vg = actx.createGain(); vg.gain.value = 0.5; verb.connect(vg); vg.connect(master);
+      noiseB = actx.createBuffer(1, actx.sampleRate * 2, actx.sampleRate);
+      const d = noiseB.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    } catch (e) { actx = null; }
+  }
+  if (actx && actx.state === 'suspended') actx.resume();
+  return actx;
+}
+function route(node, wet) { node.connect(master); if (wet) { const w = actx.createGain(); w.gain.value = wet; node.connect(w); w.connect(verb); } }
+function env(gn, t, vol, attack, dur) { const g = gn.gain; g.setValueAtTime(0.0001, t); g.exponentialRampToValueAtTime(vol, t + attack); g.exponentialRampToValueAtTime(0.0001, t + dur); }
+function nz(o) {
+  if (!soundOn || !ac()) return; const t = actx.currentTime + (o.when || 0);
+  const s = actx.createBufferSource(); s.buffer = noiseB; s.loop = true;
+  const f = actx.createBiquadFilter(); f.type = o.type || 'lowpass'; f.Q.value = o.q ?? 0.7;
+  f.frequency.setValueAtTime(o.f0, t); if (o.f1) f.frequency.exponentialRampToValueAtTime(o.f1, t + o.dur);
+  const gn = actx.createGain(); env(gn, t, o.vol, o.attack ?? 0.002, o.dur);
+  s.connect(f); f.connect(gn); route(gn, o.wet); s.start(t, Math.random() * 1.5); s.stop(t + o.dur + 0.05);
+}
+function osc(o) {
+  if (!soundOn || !ac()) return; const t = actx.currentTime + (o.when || 0);
+  const v = actx.createOscillator(); v.type = o.type || 'sine';
+  v.frequency.setValueAtTime(o.f0, t); if (o.f1) v.frequency.exponentialRampToValueAtTime(o.f1, t + (o.glide ?? o.dur));
+  if (o.vib) { const l = actx.createOscillator(), lg = actx.createGain(); l.frequency.value = o.vib.rate; lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(o.vib.depth, t + (o.vib.delay || 0) + 0.05); l.connect(lg); lg.connect(v.frequency); l.start(t); l.stop(t + o.dur + 0.05); }
+  const gn = actx.createGain(); env(gn, t, o.vol, o.attack ?? 0.005, o.dur);
+  let last = v; if (o.lp) { const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = o.lp; v.connect(f); last = f; }
+  last.connect(gn); route(gn, o.wet); v.start(t); v.stop(t + o.dur + 0.05);
+}
+function tone(freq, dur, when = 0, type = 'triangle', vol = 0.12) { osc({ type, f0: freq, dur, vol, when }); }
+const PENTA = [1047, 1175, 1319, 1568, 1760, 2093, 2349, 2637];
+const sfx = {
+  click: (when = 0, v = 0.25) => { nz({ type: 'highpass', f0: 3500, dur: 0.02, vol: v, when }); osc({ type: 'square', f0: 2100, dur: 0.012, vol: v * 0.12, when }); },
+  ratchet: (total = 0.76) => { let t = 0, gap = 0.035; while (t < total) { sfx.click(t, 0.16); t += gap; gap *= 1.13; } },
+  stop: () => { osc({ type: 'sine', f0: 150, f1: 60, dur: 0.12, vol: 0.45 }); nz({ f0: 1800, dur: 0.05, vol: 0.22 }); },
+  shot: () => { nz({ f0: 6000, f1: 300, dur: 0.5, vol: 0.9, wet: 0.6 }); nz({ type: 'highpass', f0: 2500, dur: 0.05, vol: 0.6 }); osc({ type: 'sine', f0: 160, f1: 40, dur: 0.22, vol: 0.8 }); },
+  hammer: () => { sfx.click(0, 0.28); sfx.click(0.09, 0.35); osc({ type: 'square', f0: 900, dur: 0.02, vol: 0.03, when: 0.09 }); },
+  ricochet: () => osc({ type: 'sine', f0: 2600, f1: 600, dur: 0.5, vol: 0.12, wet: 0.5, when: 0.05, vib: { rate: 30, depth: 60 } }),
+  glass: () => { nz({ type: 'highpass', f0: 4000, dur: 0.3, vol: 0.28, wet: 0.3 }); for (let i = 0; i < 5; i++) osc({ type: 'sine', f0: 2500 + Math.random() * 3500, dur: 0.12 + Math.random() * 0.2, vol: 0.04, when: Math.random() * 0.08 }); },
+  chunk: () => { osc({ type: 'sine', f0: 240, f1: 110, dur: 0.12, vol: 0.4 }); nz({ type: 'bandpass', f0: 1500, q: 2, dur: 0.06, vol: 0.35 }); },
+  coin: (when = 0, i) => { const f = PENTA[i ?? Math.floor(Math.random() * PENTA.length)]; osc({ type: 'sine', f0: f, dur: 0.6, vol: 0.07, when, wet: 0.3 }); osc({ type: 'sine', f0: f * 2.76, dur: 0.25, vol: 0.03, when }); },
+  coins: (n = 6, span = 0.5) => { for (let i = 0; i < n; i++) sfx.coin(Math.random() * span); },
+  whoosh: () => nz({ type: 'bandpass', f0: 300, f1: 3200, q: 1.5, dur: 0.4, vol: 0.35, attack: 0.15 }),
+  thud: (when = 0) => { osc({ type: 'sine', f0: 110, f1: 40, dur: 0.3, vol: 0.6, when }); nz({ f0: 400, dur: 0.15, vol: 0.2, when }); },
+  heartbeat: () => { sfx.thud(0); sfx.thud(0.2); },
+  tracer: () => { nz({ type: 'highpass', f0: 2800, dur: 0.06, vol: 0.3 }); osc({ type: 'sine', f0: 150, f1: 50, dur: 0.12, vol: 0.3 }); osc({ type: 'sine', f0: 3400, f1: 700, dur: 0.3, vol: 0.045, wet: 0.4, when: 0.02 }); },
+  hit: () => { osc({ type: 'sine', f0: 340, f1: 90, dur: 0.07, vol: 0.16 }); nz({ type: 'bandpass', f0: 1500, q: 1.5, dur: 0.05, vol: 0.13 }); },
+  stir: () => osc({ type: 'sine', f0: 320, f1: 180, dur: 0.35, vol: 0.06, vib: { rate: 14, depth: 25 } }),
+  blub: () => { osc({ type: 'sine', f0: 380, f1: 900, dur: 0.18, vol: 0.08, wet: 0.4 }); osc({ type: 'sine', f0: 560, f1: 1300, dur: 0.14, vol: 0.05, when: 0.08, wet: 0.4 }); },
+  charge: () => { osc({ type: 'sawtooth', f0: 110, f1: 900, dur: 0.55, vol: 0.06, lp: 1800, vib: { rate: 22, depth: 30 } }); nz({ type: 'bandpass', f0: 400, f1: 3200, q: 3, dur: 0.55, vol: 0.1, attack: 0.45 }); },
+  boom: () => { osc({ type: 'sine', f0: 140, f1: 30, dur: 0.6, vol: 0.85 }); nz({ f0: 3200, f1: 120, dur: 0.7, vol: 0.7, wet: 0.5 }); osc({ type: 'triangle', f0: 1300, f1: 240, dur: 0.35, vol: 0.06, wet: 0.6, vib: { rate: 30, depth: 50 } }); },
+  corrupt: () => { osc({ type: 'sawtooth', f0: 55, f1: 130, dur: 1.1, vol: 0.12, lp: 700, vib: { rate: 8, depth: 10 } }); osc({ type: 'sine', f0: 640, f1: 160, dur: 0.8, vol: 0.06, vib: { rate: 12, depth: 40 }, wet: 0.5 }); nz({ type: 'bandpass', f0: 300, f1: 2400, q: 2, dur: 0.9, vol: 0.12, attack: 0.3 }); },
+  tendril: (when = 0) => osc({ type: 'triangle', f0: 260 + Math.random() * 120, f1: 900, dur: 0.16, vol: 0.05, when }),
+  scatter: i => { const f = [784, 988, 1319, 1568, 1976][Math.min(i, 4)]; osc({ type: 'triangle', f0: f, dur: 0.5, vol: 0.13, wet: 0.4 }); osc({ type: 'sine', f0: f * 2, dur: 0.4, vol: 0.05, wet: 0.4, when: 0.03 }); },
+  tease: dur => { osc({ type: 'sawtooth', f0: 110, f1: 330, dur, vol: 0.05, attack: Math.max(0.05, dur * 0.8), lp: 900, vib: { rate: 7, depth: 4 } }); for (let t = 0; t < dur; t += 0.5) sfx.thud(t); },
+  ping: () => osc({ type: 'sine', f0: 2900, dur: 0.5, vol: 0.08, wet: 0.6 }),
+  lock: big => { sfx.click(0, 0.35); osc({ type: 'sine', f0: 1319, dur: 0.25, vol: 0.06, when: 0.05, wet: 0.3 }); osc({ type: 'sine', f0: 1976, dur: 0.35, vol: 0.05, when: 0.1, wet: 0.3 }); if (big) { osc({ type: 'triangle', f0: 1568, dur: 0.5, vol: 0.08, when: 0.16, wet: 0.5 }); osc({ type: 'triangle', f0: 2093, dur: 0.7, vol: 0.07, when: 0.24, wet: 0.5 }); } },
+  blankShot: () => { nz({ f0: 1400, f1: 250, dur: 0.18, vol: 0.3 }); sfx.click(0, 0.3); },
+  safe: () => { osc({ type: 'sine', f0: 784, dur: 0.3, vol: 0.05, wet: 0.4 }); osc({ type: 'sine', f0: 1047, dur: 0.45, vol: 0.05, when: 0.1, wet: 0.4 }); },
+  potDown: () => osc({ type: 'triangle', f0: 260, f1: 110, dur: 0.35, vol: 0.13 }),
+  power: () => { [392, 494, 587, 784].forEach((f, i) => osc({ type: 'sawtooth', f0: f, dur: 0.5, vol: 0.035, when: i * 0.04, lp: 2200, wet: 0.4 })); },
+  win: () => { [784, 988, 1175, 1568].forEach((f, i) => osc({ type: 'triangle', f0: f, dur: 0.3, vol: 0.1, when: i * 0.08, wet: 0.3 })); sfx.coins(5, 0.4); },
+  fanfare: () => { const n = [[523, .12], [659, .12], [784, .12], [1047, .36], [784, .12], [1047, .7]]; let t = 0; for (const [f, d] of n) { osc({ type: 'square', f0: f, dur: d + 0.1, vol: 0.05, when: t, wet: 0.4, lp: 3000 }); osc({ type: 'triangle', f0: f / 2, dur: d + 0.1, vol: 0.09, when: t }); t += d; } },
+  whistle: () => { const n = [[659, .16, 0], [880, .5, 1], [784, .16, 0], [659, .8, 1]]; let t = 0; for (const [f, d, v] of n) { osc({ type: 'sine', f0: f * 0.94, f1: f, glide: 0.05, dur: d, vol: 0.11, when: t, wet: 0.7, attack: 0.03, vib: v ? { rate: 6, depth: 9, delay: 0.15 } : null }); t += d + 0.04; } },
+  sad: () => { const n = [[311, .3], [294, .3], [277, .3], [262, 1]]; let t = 0; for (const [f, d] of n) { osc({ type: 'sawtooth', f0: f, dur: d, vol: 0.06, when: t, lp: 1200, vib: d > .5 ? { rate: 5, depth: 6 } : null }); t += d; } },
+  bell: () => { [[196, 0.22, 2.4], [392, 0.1, 1.8], [541, 0.07, 1.4], [1058, 0.04, 0.9]].forEach(([f, v, d]) => osc({ type: 'sine', f0: f, dur: d, vol: v, wet: 0.8, attack: 0.004 })); nz({ type: 'bandpass', f0: 2200, q: 3, dur: 0.05, vol: 0.2 }); },
+  chime: i => { const f = PENTA[Math.min(i + 1, PENTA.length - 1)]; osc({ type: 'triangle', f0: f, dur: 0.35, vol: 0.1, wet: 0.4 }); osc({ type: 'sine', f0: f * 2, dur: 0.25, vol: 0.04, wet: 0.4, when: 0.02 }); },
+  reelSpin: dur => nz({ type: 'bandpass', f0: 500, q: 0.6, dur, vol: 0.06, attack: 0.08 }),
+};
+
+// ---------- FX: particles, shake, flashes ----------
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const rnd = (a, b) => a + Math.random() * (b - a);
+const vcenter = el => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+const FX = (() => {
+  const cv = $('fx'), g = cv.getContext('2d');
+  let parts = [], raf = 0, last = 0, W = 0, H = 0, dpr = 1;
+  function size() { dpr = Math.min(2, window.devicePixelRatio || 1); W = innerWidth; H = innerHeight; cv.width = W * dpr; cv.height = H * dpr; }
+  size(); addEventListener('resize', size);
+  const draw = {
+    coin(p) { const c = Math.cos(p.rot), w = Math.abs(c) * p.r + 1; g.fillStyle = '#9a6a1e'; g.beginPath(); g.ellipse(p.x, p.y, w, p.r, 0, 0, 7); g.fill(); g.fillStyle = c > 0 ? '#ffd76a' : '#e9b445'; g.beginPath(); g.ellipse(p.x, p.y, Math.max(0.5, w - 1.6), p.r - 1.6, 0, 0, 7); g.fill(); g.fillStyle = '#fff6d0'; g.beginPath(); g.ellipse(p.x - w * 0.3, p.y - p.r * 0.35, Math.max(0.3, w * 0.22), p.r * 0.2, 0, 0, 7); g.fill(); },
+    spark(p) { g.strokeStyle = p.color; g.lineWidth = p.r; g.lineCap = 'round'; g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(p.x - p.vx * 0.035, p.y - p.vy * 0.035); g.stroke(); },
+    smoke(p, k) { const r = p.r * (1 + k * 2.5); const grd = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, r); grd.addColorStop(0, p.color); grd.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = grd; g.beginPath(); g.arc(p.x, p.y, r, 0, 7); g.fill(); },
+    chip(p) { g.save(); g.translate(p.x, p.y); g.rotate(p.rot); g.fillStyle = p.color; g.fillRect(-p.r, -p.r * 0.6, p.r * 2, p.r * 1.2); g.restore(); },
+    star(p, k) { const s = p.r * Math.sin(Math.PI * Math.min(1, k * 1.3)); g.fillStyle = p.color; g.beginPath(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 + p.rot * 0.2, rr = i % 2 ? s * 0.28 : s; g.lineTo(p.x + Math.cos(a) * rr, p.y + Math.sin(a) * rr); } g.closePath(); g.fill(); },
+  };
+  function tick(now) {
+    const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000)); last = now;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+    parts = parts.filter(p => (p.t += dt) < p.life && p.y < H + 60);
+    for (const p of parts) {
+      const dr = Math.pow(p.drag, dt * 60);
+      p.vx *= dr; p.vy = p.vy * dr + p.grav * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+      const k = p.t / p.life;
+      g.globalAlpha = (k > 0.7 ? (1 - k) / 0.3 : 1) * (p.alpha ?? 1);
+      draw[p.kind](p, k);
+    }
+    g.globalAlpha = 1;
+    raf = parts.length ? requestAnimationFrame(tick) : 0;
+    if (!raf) g.clearRect(0, 0, W, H);
+  }
+  function add(p) { parts.push(Object.assign({ t: 0, life: 1, vx: 0, vy: 0, grav: 0, drag: 1, rot: 0, vr: 0, r: 3 }, p)); if (!raf) { last = performance.now(); raf = requestAnimationFrame(tick); } }
+  function burst(x, y, kind, n, o = {}) {
+    if (reduced) return;
+    for (let i = 0; i < n; i++) {
+      const ang = o.angle !== undefined ? o.angle + rnd(-(o.spread ?? 0.6), o.spread ?? 0.6) : rnd(0, Math.PI * 2), sp = rnd(o.min ?? 80, o.max ?? 320);
+      add({ kind, x: x + rnd(-(o.jitter || 0), o.jitter || 0), y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, grav: o.grav ?? 0, drag: o.drag ?? 0.97, life: rnd(o.lifeMin ?? 0.35, o.life ?? 0.8), r: rnd(o.rMin ?? 2, o.r ?? 4), color: Array.isArray(o.color) ? o.color[i % o.color.length] : o.color, rot: rnd(0, 6), vr: rnd(-14, 14), alpha: o.alpha });
+    }
+  }
+  return {
+    coins: (x, y, n) => burst(x, y, 'coin', n, { angle: -Math.PI / 2, spread: 0.9, min: 260, max: 560, grav: 1300, drag: 0.995, lifeMin: 1.1, life: 1.7, rMin: 5, r: 8 }),
+    sparks: (x, y, n, color = ['#fff7c0', '#ffd76a', '#ff9b4a'], o = {}) => burst(x, y, 'spark', n, Object.assign({ min: 160, max: 520, drag: 0.9, lifeMin: 0.2, life: 0.45, rMin: 1.5, r: 3, color }, o)),
+    smoke: (x, y, n, o = {}) => burst(x, y, 'smoke', n, Object.assign({ angle: -Math.PI / 2, spread: 1, min: 15, max: 60, drag: 0.97, lifeMin: 0.8, life: 1.5, rMin: 6, r: 12, color: 'rgba(220,210,195,0.45)' }, o)),
+    dust: (x, y, n) => burst(x, y, 'smoke', n, { angle: -Math.PI / 2, spread: 1.4, min: 30, max: 120, drag: 0.94, lifeMin: 0.5, life: 1.1, rMin: 5, r: 10, color: 'rgba(170,120,70,0.5)', jitter: 16 }),
+    chips: (x, y, n, color) => burst(x, y, 'chip', n, { min: 120, max: 380, grav: 900, drag: 0.98, lifeMin: 0.5, life: 0.9, rMin: 1.5, r: 3.5, color }),
+    twinkle: (x, y, n, color = '#fff2b0') => burst(x, y, 'star', n, { min: 20, max: 140, drag: 0.92, lifeMin: 0.4, life: 0.8, rMin: 4, r: 9, color, jitter: 12 }),
+    shower(sec, perSec) {
+      if (reduced) return; const end = performance.now() + sec * 1000;
+      const iv = setInterval(() => {
+        if (performance.now() > end) return clearInterval(iv);
+        for (let i = 0; i < perSec / 10; i++) add({ kind: 'coin', x: rnd(0, W), y: -12, vx: rnd(-40, 40), vy: rnd(80, 260), grav: 700, drag: 0.995, life: 3.5, r: rnd(5, 9), rot: rnd(0, 6), vr: rnd(-12, 12) });
+      }, 100);
+    },
+  };
+})();
+function shake(px = 6, ms = 320) {
+  if (reduced) return; const k = [];
+  for (let i = 0; i < 7; i++) { const f = 1 - i / 7; k.push({ transform: `translate(${rnd(-px, px) * f}px, ${rnd(-px, px) * f}px)` }); }
+  k.push({ transform: 'none' }); document.querySelector('.wrap').animate(k, { duration: ms, easing: 'ease-out' });
+}
+function flashScreen(color = '#fff', peak = 0.5, ms = 300) {
+  if (reduced) return; const f = document.createElement('div'); f.className = 'screenflash'; f.style.background = color; document.body.appendChild(f);
+  f.animate([{ opacity: peak }, { opacity: 0 }], { duration: ms, easing: 'ease-out' }).finished.then(() => f.remove());
+}
+async function irisSwap(fn, text = '') {
+  if (reduced) { fn(); return; }
+  const o = document.createElement('div'); o.className = 'iris'; o.innerHTML = text ? `<span>${text}</span>` : ''; document.body.appendChild(o);
+  await o.animate([{ clipPath: 'circle(0% at 50% 50%)' }, { clipPath: 'circle(75% at 50% 50%)' }], { duration: 480, easing: 'cubic-bezier(.6,0,.4,1)', fill: 'forwards' }).finished;
+  fn(); await new Promise(r => setTimeout(r, 160));
+  await o.animate([{ clipPath: 'circle(75% at 50% 50%)' }, { clipPath: 'circle(0% at 50% 50%)' }], { duration: 520, easing: 'cubic-bezier(.6,0,.4,1)', fill: 'forwards' }).finished;
+  o.remove();
+}
+// Drifting dust in the background
+(() => {
+  if (reduced) return;
+  const cv = $('bgfx'), g = cv.getContext('2d'); let W, H, dpr, last = 0;
+  const motes = Array.from({ length: 38 }, () => ({ x: Math.random(), y: Math.random(), r: rnd(0.6, 2.2), vx: rnd(0.004, 0.02), vy: rnd(-0.006, 0.003), a: rnd(0.08, 0.3), ph: rnd(0, 6) }));
+  function size() { dpr = Math.min(2, window.devicePixelRatio || 1); W = innerWidth; H = innerHeight; cv.width = W * dpr; cv.height = H * dpr; }
+  size(); addEventListener('resize', size);
+  function loop(now) {
+    requestAnimationFrame(loop); if (now - last < 33) return; const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+    for (const m of motes) {
+      m.x += m.vx * dt; m.y += m.vy * dt; m.ph += dt;
+      if (m.x > 1.02) m.x = -0.02; if (m.y < -0.02) m.y = 1.02; if (m.y > 1.02) m.y = -0.02;
+      g.fillStyle = `rgba(240,196,108,${m.a * (0.6 + 0.4 * Math.sin(m.ph))})`; g.beginPath(); g.arc(m.x * W, m.y * H, m.r, 0, 7); g.fill();
+    }
+  }
+  requestAnimationFrame(loop);
+})();
+// Counting numbers
+const shownNum = new WeakMap();
+function countTo(el, to, dur = 600, fmtFn = n => money(n)) {
+  const from = shownNum.has(el) ? shownNum.get(el) : to; shownNum.set(el, to);
+  cancelAnimationFrame(el._raf);
+  if (reduced || dur <= 0 || to <= from) { el.textContent = fmtFn(to); return; }
+  const t0 = performance.now();
+  const step = now => { const k = Math.max(0, Math.min(1, (now - t0) / dur)), e = 1 - Math.pow(1 - k, 3); el.textContent = fmtFn(Math.round((from + (to - from) * e) * 100) / 100); if (k < 1) el._raf = requestAnimationFrame(step); };
+  el._raf = requestAnimationFrame(step);
+}
+
+// ---------- Reels ----------
+const reelsEl = $('reels');
+// Bounty symbols are written 'C' + value, e.g. 'C25', and drawn with the same art as the cash symbols
+const cashSym = s => /^C\d+$/.test(s) ? +s.slice(1) : 0;
+function cellHTML(s) {
+  const v = cashSym(s);
+  if (v) return `<div class="cell cash" data-s="${s}">${bulletSVG({ k: 'cash', v })}<span class="cv">${short(cashOf(v))}</span></div>`;
+  return `<div class="cell" data-s="${s}">${ART[s]}</div>`;
+}
+// Does symbol k already run unbroken from reel 1 to reel n along a row, a long diagonal or a V line?
+function lineStart(g, k, n) {
+  const fits = s => s === k || s === 'W';
+  const paths = [0, 1, 2, 3, 4].map(y => [0, 1, 2, 3, 4].map(x => [x, y])).concat([DIAG1, DIAG2], VS);
+  return paths.some(p => { const part = p.slice(0, n); return part.every(([x, y]) => fits(g[x][y])) && part.some(([x, y]) => g[x][y] === k); });
+}
+// What scrolls past while a bounty reel spins: dimmed regular symbols and plenty of bounty symbols, big ones included.
+// Only looks: what lands is decided by the engine.
+const TEASE_CASH = BOUNTY.cash.map((d, i) => ({ v: d.v, w: [30, 25, 20, 14, 8, 3][i] || 1 }));
+const BIG_CASH = TEASE_CASH.filter(d => d.v >= 20);
+const bountyFiller = hot => Math.random() < (hot ? 0.32 : 0.16) ? 'C' + pick(TEASE_CASH, Math.random).v : randRegular(Math.random);
+function renderReels() {
+  reelsEl.innerHTML = grid.map((col, r) => `<div class="reel"><div class="strip" id="strip${r}">${col.map(cellHTML).join('')}</div></div>`).join('') + '<svg class="winlines" id="winlines" aria-hidden="true"></svg>';
+}
+// Options:
+//   bounty: a bounty spin (quicker, no duel targets, bounty symbols light up as they land)
+//   live:   the board the live meter counts on (the final board, leaving out cells that will still change)
+//   only:   a respin, where just these reels spin
+//   from:   what the live meter already shows
+//   held:   duel targets already held by a respin
+async function animateReels(oldGrid, newGrid, opts = {}) {
+  const { bounty = false, live: liveGrid = null, only = null, from = 0, held = 0 } = opts;
+  const respin = !!only, spinning5 = only || [0, 1, 2, 3, 4];
+  // The last reels slow down and glow when a star, gold sack or horseshoe line already runs across reels 1 to 3 (it could
+  // still become a Line of 5 or a V); reel 5 burns hot when stars reach reel 4
+  const prem = !bounty && !respin && PREMIUM.some(k => lineStart(newGrid, k, 3));
+  const star4 = !bounty && !respin && lineStart(newGrid, 'STAR', 4);
+  // A respin with two duel targets held is one target away from the bonus: every respinning reel slows down and glows
+  const rTease = respin && held >= 2 && !reduced;
+  // Bounty spins tease too: when a sheriff star, gold bars or diamonds will land on reel 3, 4 or 5 (and now and then
+  // just for the thrill) the last reels slow down and glow while big symbols rush past
+  let bTease = -1, bHot = false;
+  if (bounty && !reduced) {
+    const bigAt = newGrid.findIndex((col, r) => r >= 2 && col.some(s => cashSym(s) >= 20));
+    bTease = bigAt >= 2 ? bigAt : Math.random() < 0.3 ? (Math.random() < 0.6 ? 4 : 3) : -1;
+    bHot = bigAt >= 2 && newGrid.some(col => col.some(s => cashSym(s) >= 100));
+  }
+  const dur = [0, 0, 0, 0, 0]; let extra = 0;
+  for (let r = 0; r < 5; r++) {
+    const k = spinning5.indexOf(r); if (k < 0) continue;
+    if (!bounty && prem && r >= 3) extra += r === 4 && star4 ? 1600 : 1000;
+    if (rTease) extra += 750;
+    if (bounty && bTease >= 0 && r >= bTease) extra += bHot && r === 4 ? 1100 : 750;
+    dur[r] = reduced ? 60 : bounty ? 430 + r * 150 + extra : respin ? 450 + k * 220 + extra : 560 + r * 200 + extra;
+  }
+  const lastDur = Math.max(...dur);
+  let shownWin = from, step = 0;
+  // the live meter counts on the board as it will be once corruption has spread, without the corruption's own pay
+  const evalGrid = bounty ? newGrid : liveGrid || corruption(newGrid).after;
+  sfx.reelSpin(lastDur / 1000);
+  const reels = [...reelsEl.querySelectorAll('.reel')];
+  let landed = held, teased = false;
+  if (rTease) { spinning5.forEach(r => reels[r].classList.add('tease')); sfx.tease(lastDur / 1000); }
+  const jobs = newGrid.map((col, r) => {
+    if (!spinning5.includes(r)) return null;
+    const teaseReel = bounty && bTease >= 0 && r >= bTease;
+    const filler = Array.from({ length: Math.max(8, Math.round(dur[r] / 40)) }, bounty ? () => bountyFiller(teaseReel) : () => spinGrid()[0][0]);
+    // a near miss: a big bounty symbol slides past just before a teased reel stops
+    if (teaseReel && Math.random() < 0.6) filler[Math.floor(Math.random() * 2)] = 'C' + pick(BIG_CASH, Math.random).v;
+    const syms = [...col, ...filler, ...oldGrid[r]];
+    const strip = $('strip' + r);
+    strip.innerHTML = syms.map(cellHTML).join('');
+    const pct = -((syms.length - ROWS) / syms.length) * 100;
+    const anim = strip.animate([
+      { transform: `translateY(${pct}%)`, filter: 'blur(0px)' },
+      { filter: 'blur(2.5px)', offset: 0.15 },
+      { filter: 'blur(2px)', offset: 0.78 },
+      { transform: 'translateY(0)', filter: 'blur(0px)' },
+    ], { duration: dur[r], easing: 'cubic-bezier(.25,.1,.25,1.06)' });
+    return anim.finished.then(() => {
+      strip.innerHTML = col.map(cellHTML).join('');
+      reels[r].classList.remove('tease', 'hot');
+      sfx.stop();
+      if (!reduced) reels[r].animate([{ transform: 'translateY(-5px)' }, { transform: 'translateY(2px)' }, { transform: 'none' }], { duration: 220, easing: 'ease-out' });
+      col.forEach((s, row) => {
+        const v = cashSym(s);
+        if (v) {
+          const cell = strip.children[row]; cell.classList.add('land');
+          const c = vcenter(cell), tint = kindColor({ k: 'cash', v });
+          sfx.scatter(Math.min(4, landed++)); FX.twinkle(c.x, c.y, v >= 20 ? 9 : 5, tint);
+          if (v >= 20) { FX.sparks(c.x, c.y, 14, [tint, '#fff7c0', '#ffd76a']); sfx.power(); shake(v >= 500 ? 8 : v >= 100 ? 5 : 3, 300); if (v >= 100) flashScreen(v >= 500 ? '#bff4ff' : '#ffd76a', 0.25, 400); }
+          return;
+        }
+        if (s === 'BOMB' && !bounty) {
+          const cell = strip.children[row], c = vcenter(cell); cell.classList.add('land'); sfx.blub(); FX.twinkle(c.x, c.y, 6, '#ff7ae6');
+          return;
+        }
+        if (s !== 'S') return;
+        const cell = strip.children[row]; cell.classList.add('land-s'); sfx.scatter(landed++);
+        const c = vcenter(cell); FX.twinkle(c.x, c.y, 7, '#ffe08a'); FX.sparks(c.x, c.y, 8, ['#ff8a6a', '#ffd76a']);
+      });
+      if (!bounty && !teased && prem && r === 2) { teased = true; for (let k = r + 1; k < 5; k++) reels[k].classList.add('tease'); sfx.tease((dur[4] - dur[r]) / 1000); }
+      if (!bounty && star4 && r === 3) reels[4].classList.add('hot');
+      if (bounty && bTease > 0 && r === bTease - 1) {
+        for (let k = bTease; k < 5; k++) reels[k].classList.add('tease');
+        if (bHot) reels[4].classList.add('hot');
+        sfx.tease((dur[4] - dur[r]) / 1000);
+      }
+      // goo that lands touching other goo starts to stir
+      if (!bounty) for (let x = 0; x <= r; x++) for (let y = 0; y < ROWS; y++) {
+        if (!isCorrupt(newGrid[x][y])) continue;
+        const near = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => x + dx >= 0 && x + dx <= r && newGrid[x + dx] && isCorrupt(newGrid[x + dx][y + dy]));
+        const el = $('strip' + x).children[y]; if (near && el && !el.classList.contains('stir')) { el.classList.add('stir'); if (x === r) sfx.stir(); }
+      }
+      // The win builds up as the reels stop: the payout box climbs with a rising chime
+      if (!bounty && r >= 2) {
+        const part = evaluate(evalGrid, bet, r + 1, false);
+        part.wins.forEach(w => w.cells.forEach(([rr, row]) => { const el = $('strip' + rr).children[row]; if (el && !el.classList.contains('live')) el.classList.add('live'); }));
+        if (part.lineTotal > shownWin) {
+          shownWin = part.lineTotal; livePayout(shownWin); sfx.chime(step++);
+          if (part.wins.some(w => PREMIUM.includes(w.symbol))) { const c = vcenter(reels[r]); FX.twinkle(c.x, c.y, 6); }
+        }
+      }
+    });
+  });
+  await Promise.all(jobs);
+  return shownWin;
+}
+// ---- Duel target respins ----
+// The reel with the rightmost duel target and every reel left of it are held, and the reels to its right spin again
+const countTargets = g => g.reduce((t, col) => t + col.filter(s => s === 'S').length, 0);
+async function respinReels(prev, stage, live, shown) {
+  const reels = [...reelsEl.querySelectorAll('.reel')], held = countTargets(prev);
+  reels.forEach((el, x) => { if (x <= stage.held && !el.classList.contains('held')) { el.classList.add('held'); el.insertAdjacentHTML('beforeend', '<span class="heldtag">Held</span>'); } });
+  let pill = reelsEl.querySelector('.reelpill.respin');
+  if (!pill) { pill = document.createElement('div'); pill.className = 'reelpill respin'; reelsEl.appendChild(pill); }
+  pill.textContent = held >= 3 ? 'Duel on! Respin for more bounty spins' : held === 2 ? 'Respin · one more starts the duel!' : 'Respin · 1 duel target held';
+  pill.classList.toggle('hot', held >= 2);
+  pill.classList.remove('bump'); void pill.offsetWidth; pill.classList.add('bump');
+  sfx.lock(held >= 2); sfx.whoosh();
+  for (let x = 0; x <= stage.held; x++) [...reels[x].querySelectorAll('.cell')].forEach(c => { if (c.dataset.s === 'S') { const q = vcenter(c); FX.twinkle(q.x, q.y, 5, '#ffe08a'); } });
+  await wait(600);
+  return animateReels(prev, stage.grid, { live, only: stage.cols, from: shown, held });
+}
+function endRespins() {
+  reelsEl.querySelectorAll('.reel.held').forEach(el => el.classList.remove('held'));
+  reelsEl.querySelectorAll('.heldtag').forEach(el => el.remove());
+  const pill = reelsEl.querySelector('.reelpill.respin'); if (pill) pill.remove();
+}
+// ---- Bomb blasts ----
+// Each bomb charges up and explodes: the symbols around it burst and each one's value pops up and adds to the tally.
+// A bomb caught in the blast goes off next. Then new symbols drop into the holes. Returns the live meter's new total.
+async function runBlasts(blast, base) {
+  const el = ([x, y]) => $('strip' + x).children[y], coin = bet / COIN;
+  let total = 0;
+  const tally = document.createElement('div'); tally.className = 'reelpill'; tally.hidden = true; reelsEl.appendChild(tally);
+  for (const [i, b] of blast.blasts.entries()) {
+    const j = el(b.at); if (!j) continue;
+    j.classList.remove('live', 'land'); j.classList.add('charge'); sfx.charge();
+    await wait(i ? 420 : 650);
+    const [cx, cy] = cellXY(b.at), c = vcenter(j), w = j.getBoundingClientRect().width;
+    sfx.boom(); flashScreen('#ff7ae6', 0.3, 350); shake(7, 380);
+    FX.sparks(c.x, c.y, 26, ['#ff7ae6', '#c77dff', '#fff0ff']); FX.twinkle(c.x, c.y, 8, '#ff9af0');
+    if (!reduced) { const ring = document.createElement('div'); ring.className = 'shock'; ring.style.left = cx + 'px'; ring.style.top = cy + 'px'; ring.style.width = ring.style.height = w * 3.3 + 'px'; reelsEl.appendChild(ring); setTimeout(() => ring.remove(), 650); }
+    j.classList.remove('charge'); j.classList.add('blown', 'hole');
+    for (const h of b.hit) {
+      const e = el(h.cell); if (!e) continue;
+      if (h.chain) { e.classList.add('charge'); continue; }
+      e.classList.remove('live', 'stir', 'land', 'land-s'); e.classList.add('blown', 'hole');
+      const amt = toCents(h.coins * coin), [px, py] = cellXY(h.cell), p = document.createElement('div');
+      p.className = 'blastpop' + (amt >= bet / 4 ? ' big' : ''); p.textContent = '+' + money(amt);
+      if (amt >= bet) { const q = vcenter(e); FX.sparks(q.x, q.y, 12, ['#ffd76a', '#fff7c0', '#ff7ae6']); sfx.power(); }
+      p.style.left = px + 'px'; p.style.top = py + 'px'; reelsEl.appendChild(p); setTimeout(() => p.remove(), 1050);
+    }
+    total = toCents(total + toCents(b.coins * coin));
+    if (b.coins > 0) {
+      tally.hidden = false; tally.textContent = 'Blast +' + money(total);
+      tally.classList.remove('bump'); void tally.offsetWidth; if (i) tally.classList.add('bump');
+      livePayout(base + total); sfx.coins(Math.min(8, b.hit.length), 0.35); sfx.chime(Math.min(6, i + 2));
+    }
+    await wait(b.hit.some(h => h.chain) ? 450 : 700);
+  }
+  // gravity: in each column what's left above a hole falls into it, and new symbols drop in from the top
+  await wait(150);
+  let longest = 0;
+  blast.falls.forEach((f, i) => {
+    const strip = $('strip' + f.x), delay = reduced ? 0 : i * 70, cells = [];
+    f.moves.forEach(m => cells.push({ y: m.to, s: m.s, d: m.to - m.from }));
+    f.drops.forEach(d => cells.push({ y: d.y, s: d.s, d: f.drops.length }));
+    const dur = reduced ? 0 : 300 + 70 * Math.max(...cells.map(c => c.d));
+    longest = Math.max(longest, delay + dur);
+    setTimeout(() => {
+      for (const c of cells) {
+        const t = document.createElement('div'); t.innerHTML = cellHTML(c.s);
+        const n = t.firstChild, old = strip.children[c.y]; if (!old) continue;
+        if (c.s === 'S') n.classList.add('land-s');
+        strip.replaceChild(n, old);
+        if (!reduced) n.animate([{ transform: `translateY(${-c.d * 100}%)` }, { transform: 'translateY(5%)', offset: 0.8 }, { transform: 'none' }],
+          { duration: dur, easing: 'cubic-bezier(.55,0,1,.6)' });
+      }
+      setTimeout(() => sfx.stop(), dur * 0.8);
+    }, delay);
+  });
+  await wait(longest + 350);
+  if (!reduced) tally.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: 'forwards' }).finished.then(() => tally.remove()); else tally.remove();
+  return base + total;
+}
+// ---- Corruption spreading ----
+async function spreadCorruption(c) {
+  const el = ([x, y]) => $('strip' + x).children[y];
+  const patch = c.spreading.flat();
+  patch.forEach(p => { const e = el(p); if (e) { e.classList.remove('stir'); e.classList.add('awaken'); } });
+  sfx.corrupt(); flashScreen('#9b4dff', 0.3, 500); shake(5, 400);
+  await wait(700);
+  // purple tendrils reach out to every touching symbol
+  let paths = '';
+  for (const s of c.spread) {
+    const [x1, y1] = cellXY(s.from), [x2, y2] = cellXY(s.to), mx = (x1 + x2) / 2 + (Math.random() - 0.5) * 24, my = (y1 + y2) / 2 + (Math.random() - 0.5) * 24;
+    paths += `<path d="M${x1.toFixed(1)} ${y1.toFixed(1)}Q${mx.toFixed(1)} ${my.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}"/>`;
+  }
+  setOverlay(`<g class="tendrils">${paths}</g>`);
+  c.spread.forEach((s, i) => sfx.tendril(i * 0.04));
+  await wait(420);
+  // the patch and everything it touched turn into corruption, one after another
+  for (const p of patch.concat(c.spread.map(s => s.to))) {
+    const e = el(p); if (!e) continue;
+    e.classList.remove('awaken', 'stir', 'live'); e.dataset.s = 'X'; e.innerHTML = ART.X; e.classList.add('corrupting');
+    const q = vcenter(e); FX.twinkle(q.x, q.y, 4, '#c77dff');
+    await wait(45);
+  }
+  await wait(300);
+  setOverlay('');
+}
+// ---- Showing what paid ----
+const shapeName = w => w.shape === 'group' ? `Group of ${w.size}` : w.shape === 'corrupt' ? `Corruption ${w.size}` : w.shape === 'rift' ? 'Rift' : w.shape === 'blast' ? 'Blast' : PATTERNS[w.shape].name;
+const winTitle = w => w.symbol === 'VOID' ? shapeName(w) : w.symbol === 'BOMB' ? `Bomb blast: ${w.size} symbols` : shapeName(w) + ' of ' + symName(w.symbol);
+const chipClass = w => w.symbol === 'VOID' ? ' void' : w.symbol === 'BOMB' ? ' void blast' : '';
+const WIN_COLORS = ['#b83a2c', '#2f6fb0', '#3f8a2e', '#8a3ab8', '#c9770e'];
+// centre of a cell on the reels, in the overlay's pixels
+function cellXY([x, y]) {
+  const el = $('strip' + x) && $('strip' + x).children[y], base = reelsEl.getBoundingClientRect();
+  if (!el) return [0, 0];
+  const r = el.getBoundingClientRect(); return [r.left - base.left + r.width / 2, r.top - base.top + r.height / 2];
+}
+// the outline around a set of cells (squares, groups, corners, the frame)
+function outlinePath(cells) {
+  const set = new Set(cells.map(c => c.join(','))), has = (x, y) => set.has(x + ',' + y), el = $('strip0').children[0];
+  const w = el ? el.getBoundingClientRect().width : 60, h = w / 2 - 3;
+  let d = '';
+  for (const [x, y] of cells) { const [cx, cy] = cellXY([x, y]), L = cx - h, R = cx + h, T = cy - h, B = cy + h;
+    if (!has(x, y - 1)) d += `M${L} ${T}H${R}`; if (!has(x, y + 1)) d += `M${L} ${B}H${R}`;
+    if (!has(x - 1, y)) d += `M${L} ${T}V${B}`; if (!has(x + 1, y)) d += `M${R} ${T}V${B}`; }
+  return d;
+}
+// Corruption and bomb wins keep a plain glowing outline. Every other win is shot: lines get a tracer trail (and, when
+// anim = { delay, dur } is given, a bullet that streaks along it first), area shapes get an outline of bullet holes.
+const isShot = w => w.symbol !== 'VOID' && w.symbol !== 'BOMB';
+function drawWin(w, color, anim = null) {
+  const pts = st => st.map(c => cellXY(c).map(v => v.toFixed(1)).join(',')).join(' ');
+  const timing = anim ? ` style="--d:${anim.delay}ms;--t:${anim.dur}ms"` : '';
+  let svg = '';
+  if (!isShot(w)) {
+    if (w.strokes.length) for (const st of w.strokes) svg += `<polyline class="plain" points="${pts(st)}" stroke="${color}"/>`;
+    else svg += `<path class="plain" d="${outlinePath(w.cells)}" stroke="${color}"/>`;
+    return svg;
+  }
+  if (w.strokes.length) for (const st of w.strokes) {
+    const p = pts(st), line = cls => `<polyline class="${cls}" pathLength="1" points="${p}"${cls === 'glow' ? ` stroke="${color}"` : ''}/>`;
+    svg += `<g class="trail${anim ? ' fired' : ''}"${timing}>${line('glow')}${line('scorch')}${line('core')}${anim ? line('tail') + line('head') : ''}</g>`;
+  }
+  else { const d = outlinePath(w.cells); svg += `<g class="riddled"${timing}><path class="glow" d="${d}" stroke="${color}"/><path class="rim" d="${d}"/><path class="hole" d="${d}"/></g>`; }
+  return svg;
+}
+// A bullet hole in the corner of a winning symbol, placed and turned a little differently on every cell
+const HOLE_SVG = '<svg viewBox="0 0 40 40"><path class="smoke" d="M20 13c-5-4 4-6 0-11" stroke="#a89c90" stroke-width="3" fill="none" stroke-linecap="round"/>' +
+  '<polygon points="20,6 23,13 31,9 27,16 35,19 27,22 32,30 24,26 21,35 18,27 10,32 14,24 5,21 13,17 8,10 16,13" fill="#7a4a22" opacity=".42"/>' +
+  '<g stroke="#4a2c14" stroke-width="1.4" stroke-linecap="round"><path d="M26 17L34 12M25 25L31 32M14 24L7 28M15 15L11 7"/></g>' +
+  '<circle cx="20" cy="20" r="7.4" fill="#3a2414"/><circle cx="20" cy="20" r="4.8" fill="#0d0705"/>' +
+  '<path d="M14.6 23A6.6 6.6 0 0 0 24.4 25.6" stroke="#f6ead0" stroke-width="1.6" fill="none" opacity=".55"/>' +
+  '<circle class="ember" cx="20" cy="20" r="7.4" fill="none" stroke="#ff8a3a" stroke-width="2.2"/></svg>';
+let lastHitSound = 0;
+function bulletHole([x, y], fresh) {
+  const el = $('strip' + x) && $('strip' + x).children[y];
+  if (!el || el.querySelector('.hole')) return;
+  const r = (x * 73 + y * 37) % 360, dx = ((x * 17 + y * 29) % 7) - 3, dy = ((x * 11 + y * 23) % 7) - 3;
+  el.insertAdjacentHTML('beforeend', `<span class="hole${fresh ? ' fresh' : ''}" style="--r:${r}deg;--x:${dx}%;--y:${dy}%">${HOLE_SVG}</span>`);
+  if (!fresh) return;
+  const h = el.querySelector('.hole'), c = vcenter(h); FX.sparks(c.x, c.y, 6, ['#ffd76a', '#ff8a3a', '#fff7c0']);
+  const now = performance.now(); if (now - lastHitSound > 45) { lastHitSound = now; sfx.hit(); }
+}
+// The opening volley when a spin's wins are first shown: one shot per win, the biggest first. Lines get a bullet that
+// streaks along them and holes the symbols as it passes; area shapes are shot cell by cell. Returns each animated
+// win's timing and when the volley ends.
+let volley = 0;
+function fireVolley(list) {
+  const id = ++volley, fx = !instant && !reduced, timing = new Map();
+  let at = 0;
+  list.forEach((w, i) => {
+    if (!isShot(w)) return;
+    const animate = fx && i < 8, line = w.strokes.length > 0;
+    const n = line ? Math.max(...w.strokes.map(st => st.length)) : w.cells.length, dur = line ? 120 + 105 * (n - 1) : 65 * n;
+    const hits = line ? w.strokes.flatMap(st => st.map((c, k) => ({ c, t: dur * (st.length > 1 ? k / (st.length - 1) : 0) })))
+      : w.cells.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]).map((c, k) => ({ c, t: 65 * k }));
+    if (!animate) { hits.forEach(h => bulletHole(h.c, false)); return; }
+    timing.set(w, { delay: at, dur });
+    const start = at;
+    hits.forEach(h => setTimeout(() => { if (volley === id) bulletHole(h.c, true); }, start + h.t));
+    if (line && i < 5) setTimeout(() => { if (volley === id) sfx.tracer(); }, start);
+    at += Math.min(dur, 280) + 80;
+  });
+  return { timing, end: at + 300 };
+}
+function setOverlay(svg) { const o = $('winlines'); if (!o) return; const r = reelsEl.getBoundingClientRect(); o.setAttribute('viewBox', `0 0 ${r.width} ${r.height}`); o.innerHTML = svg; }
+function markCells(cells) { cells.forEach(([r, row]) => { const el = $('strip' + r).children[row]; if (el) el.classList.add('win'); }); }
+function unmarkCells() { reelsEl.querySelectorAll('.cell.win').forEach(el => el.classList.remove('win')); }
+let winCycle = 0;
+function clearWinLines() { winCycle++; volley++; setOverlay(''); }
+// The winning symbols stay bright and everything else fades. First every win is drawn at once, then each one is
+// shown on its own in turn, with its chip ("Line of 4 [queen] $0.80") lit up below the reels.
+function showWins(wins, cycle = true) {
+  if (!wins.length) return;
+  reelsEl.classList.add('showwin');
+  const list = wins.slice().sort((a, b) => b.amount - a.amount), shown = list.slice(0, 5);
+  list.forEach((w, i) => w.color = w.symbol === 'VOID' ? '#8b3dff' : w.symbol === 'BOMB' ? '#e04cc8' : WIN_COLORS[i % WIN_COLORS.length]);
+  $('result').className = 'result wins';
+  $('result').innerHTML = shown.map((w, i) => `<span class="wchip${chipClass(w)}" data-i="${i}" title="${winTitle(w)}"><i>${ART[w.symbol]}</i><b>${shapeName(w)}</b>${w.boost > 1 ? `<span class="boost">×${w.boost}</span>` : ''}<em>${money(w.amount)}</em></span>`).join('') +
+    (list.length > shown.length ? `<span class="wchip more">+${list.length - shown.length} more</span>` : '');
+  const shot = fireVolley(list);
+  setOverlay(list.map(w => drawWin(w, w.color, shot.timing.get(w))).join(''));
+  if (!cycle || instant || reduced || list.length < 2) return;
+  const id = ++winCycle;
+  (async () => {
+    await new Promise(r => setTimeout(r, Math.max(1400, shot.end + 500)));
+    for (let i = 0; winCycle === id; i = (i + 1) % list.length) {
+      const w = list[i];
+      unmarkCells(); markCells(w.cells); setOverlay(drawWin(w, w.color));
+      $('result').querySelectorAll('.wchip').forEach(c => c.classList.toggle('on', +c.dataset.i === i));
+      await new Promise(r => setTimeout(r, 1300));
+    }
+  })();
+}
+const wait = ms => new Promise(r => setTimeout(r, reduced ? Math.min(ms, 200) : ms));
+function partyLights(ms) { $('machine').classList.add('party'); clearTimeout(partyLights.t); partyLights.t = setTimeout(() => $('machine').classList.remove('party'), ms); }
+function reelBanner(text, cls = '') { const b = document.createElement('div'); b.className = 'banner ' + cls; b.textContent = text; reelsEl.appendChild(b); return b; }
+
+async function spin() {
+  if (spinning || balance < bet) return;
+  ac();
+  spinning = true; balance -= bet; stats.spins++; stats.wagered += bet; save(); updateMeters();
+  setPayout(null); clearWinLines();
+  $('result').className = 'result'; $('result').textContent = ''; reelsEl.classList.remove('showwin');
+  const old = grid, board = spinBoard(), landed = board.grid, res = spinResult(landed, bet), stages = board.stages;
+  // The live meter counts on the final board. At each stage it leaves out the reels a later respin will change and
+  // the cells that get blown up and refilled.
+  const lastStage = [0, 0, 0, 0, 0]; stages.forEach((st, i) => st.cols.forEach(x => { lastStage[x] = i; }));
+  const liveAt = i => {
+    const g = res.final.map((col, x) => lastStage[x] > i ? col.map(() => null) : col.slice());
+    if (res.blast) res.blast.changed.forEach(([x, y]) => { g[x][y] = null; });
+    return g;
+  };
+  // the reels land (with any duel target respins), then the bombs explode and new symbols drop in, then corruption
+  // spreads, then everything is paid
+  if (instant) { grid = res.final; renderReels(); sfx.stop(); }
+  else {
+    grid = landed;
+    let shown = await animateReels(old, stages[0].grid, { live: liveAt(0) });
+    for (let i = 1; i < stages.length; i++) shown = await respinReels(stages[i - 1].grid, stages[i], liveAt(i), shown);
+    if (stages.length > 1) { await wait(countTargets(landed) >= 3 ? 200 : 350); endRespins(); }
+    if (res.blast) shown = await runBlasts(res.blast, shown);
+    if (res.corrupt) await spreadCorruption(res.corrupt);
+    grid = res.final;
+  }
+  balance += res.lineTotal; save();
+  spinPay = res.lineTotal;
+  res.wins.forEach(w => markCells(w.cells));
+  showWins(res.wins, !res.bonus);
+  // a big star shape (Line of 5, cross, V, corners and up) or 100 times the bet is a jackpot
+  const jackpot = res.lineTotal >= bet * 100 || res.wins.some(w => w.symbol === 'STAR' && shapeMult(w.shape, w.size) >= 30);
+  if (res.bonus) stats.duels++;
+  if (res.bonus && instant) {
+    markCells(res.bonus.cells);
+    const pay = instantBonus(res.lineTotal, res.bonus.count);
+    spinPay += pay; setPayout(spinPay); updateMeters();
+    await celebrate(spinPay);
+    spinning = false; updateMeters();
+    return;
+  }
+  if (res.bonus) {
+    markCells(res.bonus.cells);
+    if (res.lineTotal > 0) { countTo($('payout'), res.lineTotal, 400); sfx.coins(3, 0.3); }
+    const b = reelBanner('Duel!');
+    sfx.shot(); flashScreen('#ff5a3a', 0.45, 400); shake(10, 500);
+    res.bonus.cells.forEach(([r, row]) => { const c = vcenter($('strip' + r).children[row]); FX.sparks(c.x, c.y, 14); });
+    await wait(1500);
+    b.remove();
+    runBounty(res.bonus.count, 'trigger');
+    return;
+  }
+  if (!instant && res.wins.some(w => w.shape === 'rift')) {
+    const b = reelBanner('Rift!', 'void'); sfx.corrupt(); flashScreen('#9b4dff', 0.4, 600); shake(8, 500); await wait(1300); b.remove();
+  }
+  setPayout(spinPay); updateMeters();
+  await celebrate(spinPay, jackpot ? 'Jackpot!' : '');
+  spinning = false; updateMeters();
+}
+const plusMoney = n => n > 0 ? '+' + money(n) : money(n);
+// The payout box during the reel stop: shows the win so far, without paying it yet
+function livePayout(v) {
+  const box = $('payoutBox'); box.classList.remove('big'); box.classList.add('win');
+  countTo($('payout'), v, 260, plusMoney);
+}
+function setPayout(v) {
+  const box = $('payoutBox'), el = $('payout');
+  box.classList.remove('win', 'big');
+  if (v === null) { cancelAnimationFrame(el._raf); shownNum.set(el, 0); el.textContent = '…'; return; }
+  stats.paid += v; save();
+  countTo(el, v, v >= bet * 10 ? 1200 : 450, plusMoney);
+  void box.offsetWidth; // restart the flash animation
+  if (v > 0) { box.classList.add('win'); floatGain(v); }
+  if (v >= bet * 10) box.classList.add('big');
+}
+// A green "+$" that floats up from the payout box, and the balance flashes green
+function floatGain(v) {
+  const r = $('payoutBox').getBoundingClientRect(), from = { x: r.left + r.width / 2, y: r.top - 4 }, g = document.createElement('div');
+  g.className = 'gain' + (v < bet ? ' small' : ''); g.textContent = '+' + money(v);
+  g.style.left = from.x + 'px'; g.style.top = from.y + 'px'; document.body.appendChild(g); setTimeout(() => g.remove(), 1400);
+  const m = $('balance').parentElement; m.classList.add('gain-flash'); clearTimeout(floatGain.t); floatGain.t = setTimeout(() => m.classList.remove('gain-flash'), 900);
+}
+// Win celebrations, scaled to how big the win is compared with the bet
+async function celebrate(v, title = '') {
+  if (v <= 0) return;
+  if (title && !instant) { await bigWin(v, title); return; }
+  const ratio = v / bet, pb = vcenter($('payoutBox'));
+  if (instant || ratio < 5) { FX.coins(pb.x, pb.y, Math.min(14, 3 + Math.round(ratio * 2))); sfx.coins(Math.min(8, 2 + Math.round(ratio)), 0.4); if (ratio >= 5) partyLights(800); return; }
+  if (ratio < 15) {
+    FX.coins(pb.x, pb.y, 26); partyLights(1600); sfx.win(); shake(4, 250);
+    const b = reelBanner('Nice win!', 'gold'); await wait(1300); b.remove(); return;
+  }
+  await bigWin(v, ratio >= 50 ? 'Mega win!' : 'Big win!');
+}
+async function bigWin(v, title) {
+  const o = document.createElement('div'); o.className = 'bigwin';
+  o.innerHTML = `<div class="bw-title">${title}</div><div class="bw-amt">$0</div>`; document.body.appendChild(o);
+  const amt = o.querySelector('.bw-amt'); shownNum.set(amt, 0);
+  sfx.fanfare(); FX.shower(2.6, 45); shake(8, 450); partyLights(3200); flashScreen('#ffd76a', 0.35, 500);
+  countTo(amt, v, 2000);
+  const tick = setInterval(() => sfx.coin(0), 110); setTimeout(() => clearInterval(tick), 2000);
+  await wait(3200);
+  if (!reduced) await o.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 350 }).finished;
+  o.remove();
+}
+// Instant mode: play the whole bonus in one go and report the result in a line
+function instantBonus(linePay, sc) {
+  const r = playBonus(sc), u = BONUS.unit * bet, pay = r.payoutUnits * u, pot = r.bounty.pot * u;
+  balance += pay; save();
+  $('result').className = 'result big';
+  $('result').textContent = `${r.won ? 'Duel won' : 'Duel lost'}: ${money(pay)} (${money(pot)} bounty ×${r.mult})` + (linePay > 0 ? ` · lines ${money(linePay)}` : '');
+  return pay;
+}
+
+// ---------- Bonus UI ----------
+// Whole dollars show as $12, anything with cents as $12.40
+const money = n => { const c = Math.round(n * 100); return '$' + (c % 100 === 0 ? fmt(c / 100) : (c / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })); };
+function short(n) {
+  if (n < 1000) return money(n);
+  const k = n / 1000; return '$' + (k >= 100 || k % 1 === 0 ? Math.round(k) : k.toFixed(1)) + 'K';
+}
+let bonus = null; // { b, bet, how }
+const cashOf = v => v * bonus.bet * BONUS.unit;
+function label(x) {
+  if (!x) return '';
+  return { cash: () => short(cashOf(x.v)), mult: () => '×' + x.v, blank: () => 'BLANK', thief: () => 'STEAL', deadeye: () => 'AIM', stolen: () => 'STOLEN', gone: () => label(x.was) }[x.k]();
+}
+// Cash bullets carry a cowboy symbol instead of a dollar amount. Each symbol is worth a fixed share of the bet.
+const CASH_ICON = {"1": "<path d=\"M-6.5 -10.5H2.5V-1.5C6.5-.5 10.5 1.5 10.5 5.5V8.5H-8V5L-6.5 3.5Z\"/><path d=\"M-8 8.5H-3.5V11H-8Z\"/><path d=\"M-7.5 -10.5H3.5V-8.2H-7.5Z\"/>", "2": "<path d=\"M-6.5 9L-8 0C-9-12.5 9-12.5 8 0L6.5 9\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\"/>", "5": "<path d=\"M-12 4C-12 8.5 12 8.5 12 4C8.5 6.8-8.5 6.8-12 4Z\"/><path d=\"M-7 4.8C-8.2-5-6-10-2.2-9L0-6.6L2.2-9C6-10 8.2-5 7 4.8Z\"/>", "20": "<polygon points=\"0.0,-10.2 3.2,-5.5 8.8,-5.1 6.4,0.0 8.8,5.1 3.2,5.5 0.0,10.2 -3.2,5.5 -8.8,5.1 -6.4,0.0 -8.8,-5.1 -3.2,-5.5\"/><circle cx=\"0.0\" cy=\"-10.2\" r=\"1.9\"/><circle cx=\"8.8\" cy=\"-5.1\" r=\"1.9\"/><circle cx=\"8.8\" cy=\"5.1\" r=\"1.9\"/><circle cx=\"0.0\" cy=\"10.2\" r=\"1.9\"/><circle cx=\"-8.8\" cy=\"5.1\" r=\"1.9\"/><circle cx=\"-8.8\" cy=\"-5.1\" r=\"1.9\"/><circle r=\"2.8\" fill=\"#fff\" fill-opacity=\".45\"/>", "100": "<path d=\"M-4 -10.5H4L2 -6C8 -4 10.5 2.5 9.5 6C8.5 10.5-8.5 10.5-9.5 6C-10.5 2.5-8-4-2-6Z\"/><text y=\"6.6\" text-anchor=\"middle\" font-family=\"Alegreya Sans,Trebuchet MS,sans-serif\" font-weight=\"800\" font-size=\"11\" fill=\"#fff\" fill-opacity=\".8\">$</text>", "500": "<g stroke=\"#fff\" stroke-opacity=\".6\" stroke-width=\".9\" stroke-linejoin=\"round\"><path d=\"M-11.5 10.5L-9.5 2.5H-1L0 10.5Z\"/><path d=\"M0 10.5L1 2.5H9.5L11.5 10.5Z\"/><path d=\"M-5.8 2.5L-4-5.8H4L5.8 2.5Z\"/></g>"};
+const CASH_NAME = {"1": "Boot", "2": "Horseshoe", "5": "Hat", "20": "Sheriff star", "100": "Gold bars", "500": "Diamonds"};
+// ---- Bullet art: every bullet type has its own shape, colors and emblem ----
+const BART = {
+  c1:      { name: 'Boot',         shape: 'chip',    c: ['#c98454', '#74401f'], ink: '#f7e6c8', icon: 'boot' },
+  c2:      { name: 'Horseshoe',    shape: 'rsquare', c: ['#4fc9be', '#1b6a65'], ink: '#f0fbf9', icon: 'shoe' },
+  c5:      { name: 'Hat',          shape: 'hex',     c: ['#f3cb8c', '#b4762f'], ink: '#3a2414', icon: 'hat' },
+  c20:     { name: 'Sheriff star', shape: 'star',    c: ['#ffe680', '#c98a10'], ink: '#7a4f08', icon: 'badge' },
+  c100:    { name: 'Gold bars',    shape: 'ingots',  c: ['#fff4a8', '#e39a06'], ink: '#8a5a06', rim: '#7a4604', glow: '#ffb81f', draw: 'ingots', rays: ['rg-gold', 'rg-amber'], rayLen: 30 },
+  c500:    { name: 'Diamonds',     shape: 'gem',     c: ['#f2feff', '#3d8fe0'], ink: '#ffffff', rim: '#163a78', glow: '#4fe0ff', draw: 'gem', rays: ['rg-cyan', 'rg-pink', 'rg-white', 'rg-yellow'], rayLen: 35 },
+  m2:      { name: '×2',           shape: 'circle',  c: ['#f47a56', '#a8291b'], ink: '#ffffff', text: '×2' },
+  m3:      { name: '×3',           shape: 'oct',     c: ['#e0506e', '#701024'], ink: '#ffffff', text: '×3', rim: '#e8b74a' },
+  m5:      { name: '×5',           shape: 'burst',   c: ['#ffa040', '#c41c74'], ink: '#ffffff', text: '×5', glow: '#ff5aa0' },
+  m10:     { name: '×10',          shape: 'seal',    c: ['#ffe680', '#6a1cc4'], ink: '#ffffff', text: '×10', glow: '#b36bff', rim: '#ffd23f' },
+  blank:   { name: 'Blank',        shape: 'ring',    c: ['#e4e0d8', '#8e8981'], ink: '#4a4540', icon: 'hollow' },
+  thief:   { name: 'Steal',        shape: 'tri',     c: ['#7aa0ff', '#2238a0'], ink: '#ffffff', icon: 'lasso' },
+  deadeye: { name: 'Aim',          shape: 'target',  c: ['#6ad8fb', '#14769a'], ink: '#ffffff', icon: 'cross' },
+};
+const artKey = x => x.k === 'cash' ? 'c' + x.v : x.k === 'mult' ? 'm' + x.v : x.k;
+const artOf = x => x && BART[artKey(x)];
+const poly = (n, r, rot = -90, inner = 0) => {
+  const m = inner ? n * 2 : n, pts = [];
+  for (let i = 0; i < m; i++) { const a = (rot + i * 360 / m) * Math.PI / 180, rr = inner && i % 2 ? inner : r; pts.push((rr * Math.cos(a)).toFixed(1) + ',' + (rr * Math.sin(a)).toFixed(1)); }
+  return pts.join(' ');
+};
+// Gold bars: three ingots stacked in a pyramid. [center x, bottom y, top y, bottom half-width, top half-width]
+const INGOTS = [[-11.5, 17.5, 3, 11.5, 8.5], [11.5, 17.5, 3, 11.5, 8.5], [0, 1, -14.5, 11.5, 8.5]];
+const trap = ([cx, yb, yt, wb, wt]) => `M${cx - wb} ${yb}H${cx + wb}L${cx + wt} ${yt}H${cx - wt}Z`;
+// A four-point twinkle. Pulses unless the player prefers reduced motion.
+function sparkle(x, y, r, delay = 0, color = '#fff') {
+  const q = (r * 0.2).toFixed(1);
+  const d = `M0 ${-r}Q${q} ${-q} ${r} 0Q${q} ${q} 0 ${r}Q${-q} ${q} ${-r} 0Q${-q} ${-q} 0 ${-r}Z`;
+  const anim = reduced ? '' : `<animateTransform attributeName="transform" type="scale" values=".2;1.15;.2" keyTimes="0;.5;1" dur="1.4s" begin="${delay}s" repeatCount="indefinite"/>`;
+  return `<g transform="translate(${x} ${y})"><path d="${d}" fill="${color}">${anim}</path></g>`;
+}
+// Light rays fanning out behind a symbol, slowly turning
+function raysArt(fills, len = 27, n = 16) {
+  let p = '';
+  for (let i = 0; i < n; i++) {
+    const a0 = (i * 360 / n - 6) * Math.PI / 180, a1 = (i * 360 / n + 6) * Math.PI / 180;
+    p += `<path d="M0 0L${(len * Math.cos(a0)).toFixed(1)} ${(len * Math.sin(a0)).toFixed(1)}L${(len * Math.cos(a1)).toFixed(1)} ${(len * Math.sin(a1)).toFixed(1)}Z" fill="url(#${fills[i % fills.length]})"/>`;
+  }
+  const spin = reduced ? '' : '<animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="10s" repeatCount="indefinite"/>';
+  const pulse = reduced ? '' : '<animate attributeName="opacity" values=".75;1;.75" dur="1.6s" repeatCount="indefinite"/>';
+  return `<g>${pulse}<g>${p}${spin}</g></g>`;
+}
+// A small cut diamond for the cluster around the big one
+const miniGem = (x, y, k, live) => `<g transform="translate(${x} ${y}) scale(${k})"><path d="M-12 -18H12L22 -8L0 19L-22 -8Z" fill="${live ? 'url(#bg-c500)' : '#9a958d'}" stroke="${live ? '#163a78' : '#2e2b28'}" stroke-width="4" stroke-linejoin="round"/>` +
+  `<polygon points="-12,-18 12,-18 22,-8 -22,-8" fill="${live ? '#e8fdff' : '#cfcac2'}"/><polygon points="0,-8 22,-8 0,19" fill="${live ? '#2f8fe0' : '#7d7871'}" opacity=".8"/>` +
+  `<path d="M-22 -8H22M-4 -18L-11 -8L0 19L11 -8L4 -18" fill="none" stroke="#fff" stroke-opacity=".8" stroke-width="1.6"/></g>`;
+// Extra detail drawn on top of a symbol's body, per mode
+const DETAIL = {
+  ingots: mode => {
+    const live = mode === 'live', gone = mode === 'gone';
+    let s = '';
+    for (const [cx, yb, yt, wb, wt] of INGOTS) {
+      if (gone) { s += `<rect x="${cx - 5}" y="${yt + 5.5}" width="10" height="${yb - yt - 9}" rx="1" fill="none" stroke="#6a5f55" stroke-width="1.2"/>`; continue; }
+      const top = live ? '#fffbe2' : '#d9d5ce', line = live ? '#a86d06' : '#5a5650', stamp = live ? '#b07408' : '#615d57';
+      // top face of the ingot, catching the light
+      s += `<path d="M${cx - wt} ${yt}H${cx + wt}L${cx + wt + 0.9} ${yt + 3.8}H${cx - wt - 0.9}Z" fill="${top}" opacity=".9"/>`;
+      s += `<path d="M${cx - wt - 0.9} ${yt + 3.8}H${cx + wt + 0.9}" stroke="${line}" stroke-width="1"/>`;
+      // the stamped mark on the front
+      s += `<rect x="${cx - 5.2}" y="${yt + 6.2}" width="10.4" height="${(yb - yt - 9.4).toFixed(1)}" rx="1.2" fill="none" stroke="${stamp}" stroke-width="1.2" opacity=".75"/>`;
+      s += `<path d="M${cx - 2.6} ${yt + 8.6}h5.2M${cx - 2.6} ${yt + 10.6}h3.4" stroke="${stamp}" stroke-width=".9" opacity=".7"/>`;
+      // a bright streak down the left side
+      s += `<path d="M${cx - wt + 1.4} ${yt + 4.6}L${cx - wb + 3.2} ${yb - 1.4}" stroke="#fff" stroke-opacity="${live ? .7 : .3}" stroke-width="1.6" stroke-linecap="round"/>`;
+    }
+    if (live) s += sparkle(-15, 7.5, 4.6, -0.2) + sparkle(6.5, -10.5, 5.2, -0.9) + sparkle(17.5, 9, 3.6, -0.55) + sparkle(-6, -15.5, 3, -1.15);
+    return s;
+  },
+  gem: mode => {
+    const live = mode === 'live', gone = mode === 'gone';
+    // facets: [points, live color, locked color]
+    const F = [
+      ['-12,-18 -22,-8 -11,-8', '#7fdcff', '#a9a49c'], ['-12,-18 -4,-18 -11,-8', '#dff9ff', '#cfcac2'], ['-4,-18 -11,-8 0,-8', '#9fe9ff', '#b8b3ab'],
+      ['-4,-18 4,-18 0,-8', '#ffffff', '#e2ded6'], ['4,-18 0,-8 11,-8', '#bff2ff', '#c4bfb7'], ['4,-18 12,-18 11,-8', '#ffe9fb', '#d4cfc7'],
+      ['12,-18 11,-8 22,-8', '#5cc6f5', '#9c978f'],
+      ['-22,-8 -11,-8 0,19', '#2f8fe0', '#7d7871'], ['-11,-8 0,-8 0,19', '#8fe0ff', '#aaa59d'], ['0,-8 11,-8 0,19', '#4fb4f0', '#8f8a83'], ['11,-8 22,-8 0,19', '#1f6fc8', '#6c6862'],
+    ];
+    let s = '';
+    if (!gone) s += F.map(([p, c, g]) => `<polygon points="${p}" fill="${live ? c : g}"/>`).join('');
+    // a little rainbow fire in two facets
+    if (live) s += `<polygon points="-11,-8 0,-8 0,19" fill="#ffb8f0" opacity=".35"/><polygon points="4,-18 0,-8 11,-8" fill="#fff59a" opacity=".45"/>`;
+    s += `<path d="M-22 -8H22M-12 -18L-11 -8L0 19L11 -8L12 -18M-4 -18L-11 -8M-4 -18L0 -8L4 -18M4 -18L11 -8M0 -8V19" fill="none" stroke="${gone ? '#6a5f55' : '#fff'}" stroke-opacity="${live ? .75 : .5}" stroke-width=".8" stroke-linejoin="round"/>`;
+    if (!gone) s += miniGem(-17, 12.5, 0.36, live) + miniGem(17.5, 13.5, 0.3, live);
+    if (live) s += sparkle(15, -16, 6.5, -0.3) + sparkle(-19, -14, 4.2, -0.95) + sparkle(-6, 4, 3.4, -0.6) + sparkle(21, 2, 3.8, -1.2) + sparkle(-2, -13.5, 3, -0.1) + sparkle(-22, 20, 3, -0.75);
+    return s;
+  },
+};
+// Outline shapes, centered on 0,0 and about 46 units across. a = attributes for every piece.
+const SHAPES = {
+  circle:  a => `<circle r="21" ${a}/>`,
+  chip:    a => `<circle r="21.5" ${a}/>`,
+  rsquare: a => `<rect x="-18.5" y="-18.5" width="37" height="37" rx="8" ${a}/>`,
+  hex:     a => `<polygon points="${poly(6, 23)}" ${a}/>`,
+  oct:     a => `<polygon points="${poly(8, 22.5, -67.5)}" ${a}/>`,
+  pent:    a => `<polygon points="${poly(5, 24, -90)}" transform="translate(0 2)" ${a}/>`,
+  star:    a => `<polygon points="${poly(6, 21, -90, 12.5)}" ${a}/>` + [0, 1, 2, 3, 4, 5].map(k => { const t = (-90 + k * 60) * Math.PI / 180; return `<circle cx="${(21 * Math.cos(t)).toFixed(1)}" cy="${(21 * Math.sin(t)).toFixed(1)}" r="3.8" ${a}/>`; }).join(''),
+  shield:  a => `<path d="M0 -22.5L18.5 -15.5V-1C18.5 11 10 18.5 0 23C-10 18.5 -18.5 11 -18.5 -1V-15.5Z" ${a}/>`,
+  diamond: a => `<path d="M0 -24.5L23 0L0 24.5L-23 0Z" ${a}/>`,
+  burst:   a => `<polygon points="${poly(12, 24, -90, 17)}" ${a}/>`,
+  seal:    a => `<polygon points="${Array.from({ length: 64 }, (_, i) => { const t = i / 64 * 2 * Math.PI, r = 21.5 + 2.6 * Math.cos(16 * t); return (r * Math.cos(t)).toFixed(1) + ',' + (r * Math.sin(t)).toFixed(1); }).join(' ')}" ${a}/>`,
+  ring:    a => `<circle r="21" ${a}/>`,
+  ingots:  a => `<path d="${INGOTS.map(trap).join('')}" ${a}/>`,
+  gem:     a => `<path d="M-12 -18H12L22 -8L0 19L-22 -8Z" ${a}/>`,
+  tri:     a => `<path d="M0 -16H16.5Q22.5 -16 19.5 -10.8L4 16.4Q0 23 -4 16.4L-19.5 -10.8Q-22.5 -16 -16.5 -16Z" ${a}/>`,
+  target:  a => `<circle r="18.5" ${a}/>` + [0, 90, 180, 270].map(d => `<rect x="-3.2" y="-24.5" width="6.4" height="9" rx="2" transform="rotate(${d})" ${a}/>`).join(''),
+};
+const ICONS = {
+  boot:   ink => `<g transform="scale(1.05)" fill="${ink}">${CASH_ICON[1]}</g>`,
+  shoe:   ink => `<g transform="scale(1.05)" style="color:${ink}">${CASH_ICON[2]}</g>`,
+  hat:    ink => `<g transform="scale(1.15) translate(0 -1)" fill="${ink}">${CASH_ICON[5]}</g>`,
+  badge:  ink => `<circle r="7.5" fill="none" stroke="${ink}" stroke-width="2.2"/><polygon points="${poly(5, 4.6, -90, 2)}" fill="${ink}"/>`,
+  hollow: ink => `<circle r="14.5" fill="none" stroke="${ink}" stroke-opacity=".45" stroke-width="1.6" stroke-dasharray="3 2.6"/><circle r="8.5" fill="#2e2a26"/><circle r="8.5" fill="none" stroke="#0007" stroke-width="2"/><ellipse cx="-2.5" cy="-3" rx="3" ry="1.8" fill="#fff" opacity=".18"/>`,
+  lasso:  ink => `<g transform="translate(0 -3)" fill="none" stroke="${ink}" stroke-width="2.6" stroke-linecap="round"><ellipse cx="0" cy="-3" rx="9" ry="5.5"/><path d="M-4 2C-6 7 1 8 -1.5 13"/><circle cx="-3.6" cy="2.2" r="1.9" fill="${ink}" stroke="none"/></g>`,
+  cross:  ink => `<circle r="10.5" fill="none" stroke="${ink}" stroke-width="2.4"/><circle r="4" fill="#e0402f" stroke="${ink}" stroke-width="1.6"/>`,
+};
+// Shared gradients, clip paths and glow, defined once for the whole page
+(() => {
+  let d = '<filter id="fx-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3.2"/></filter>';
+  for (const [k, a] of Object.entries(BART)) d += `<linearGradient id="bg-${k}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a.c[0]}"/><stop offset="1" stop-color="${a.c[1]}"/></linearGradient>`;
+  for (const [id, c] of [['rg-gold', '#ffcf3a'], ['rg-amber', '#ff9a1f'], ['rg-cyan', '#3fdcff'], ['rg-pink', '#ff6ad5'], ['rg-white', '#ffffff'], ['rg-yellow', '#ffe04a']])
+    d += `<radialGradient id="${id}" cx="0" cy="0" r="34" gradientUnits="userSpaceOnUse"><stop offset=".15" stop-color="${c}"/><stop offset=".62" stop-color="${c}" stop-opacity=".75"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></radialGradient>`;
+  d += '<filter id="fx-glow2" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="4.5"/></filter>';
+  d += '<linearGradient id="bg-locked" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8d8880"/><stop offset="1" stop-color="#4a4641"/></linearGradient>';
+  for (const s of Object.keys(SHAPES)) d += `<clipPath id="cp-${s}">${SHAPES[s]('')}</clipPath>`;
+  document.body.insertAdjacentHTML('afterbegin', `<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>${d}</defs></svg>`);
+})();
+// mode: 'live' (full color), 'locked' (greyed out), 'gone' (destroyed, dark)
+function bulletArt(x, mode = 'live') {
+  const a = artOf(x); if (!a) return '';
+  const S = SHAPES[a.shape], live = mode === 'live';
+  const ink = live ? a.ink : mode === 'locked' ? '#ece6da' : '#6a5f55';
+  const rim = live ? (a.rim || '#0009') : mode === 'locked' ? '#2e2b28' : '#1a1512';
+  const body = live ? `url(#bg-${artKey(x)})` : mode === 'locked' ? 'url(#bg-locked)' : '#2b2521';
+  let s = '';
+  if (live && a.rays) s += raysArt(a.rays, a.rayLen);
+  if (live && a.glow) s += `<g filter="url(#${a.rays ? 'fx-glow2' : 'fx-glow'})" opacity="${a.rays ? 1 : .85}">${S(`fill="${a.glow}"`)}</g>`;
+  if (mode !== 'gone') s += `<g transform="translate(1.2 2.4)" opacity=".45">${S('fill="#000" stroke="#000" stroke-width="2.6" stroke-linejoin="round"')}</g>`;
+  s += S(`fill="${rim}" stroke="${rim}" stroke-width="${a.rim && live ? 4 : 3}" stroke-linejoin="round"`);
+  s += S(`fill="${body}"`);
+  // per-type detail
+  if (a.shape === 'chip') s += [0, 1, 2, 3, 4, 5, 6, 7].map(k => `<rect x="-2.3" y="-21.5" width="4.6" height="6.5" rx="1" fill="${ink}" opacity=".85" transform="rotate(${k * 45 + 22.5})"/>`).join('') + `<circle r="13.5" fill="none" stroke="${ink}" stroke-opacity=".35" stroke-width="1.2"/>`;
+  if (a.draw) s += DETAIL[a.draw](mode);
+  if (mode !== 'gone') {
+    if (!a.draw) s += `<g transform="scale(.84)">${S('fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="1.5" stroke-linejoin="round"')}</g>`;
+    s += `<g clip-path="url(#cp-${a.shape})"><ellipse cx="-7" cy="-12" rx="15" ry="8" fill="#fff" opacity="${live ? (a.draw ? .22 : .3) : .14}" transform="rotate(-28 -7 -12)"/></g>`;
+  }
+  if (a.draw) return s;
+  // emblem: a symbol or the multiplier number, with a soft emboss shadow
+  if (a.text) s += `<text y="6.8" text-anchor="middle" font-family="Alegreya Sans, Trebuchet MS, sans-serif" font-weight="800" font-size="${a.shape === 'burst' ? 18 : a.shape === 'seal' ? 15.5 : 19}" fill="${ink}" stroke="${live ? '#0007' : '#0004'}" stroke-width="2.6" paint-order="stroke">${a.text}</text>`;
+  else { if (mode !== 'gone') s += `<g transform="translate(.7 1.1)" opacity=".3">${ICONS[a.icon]('#000')}</g>`; s += ICONS[a.icon](ink); }
+  return s;
+}
+// A bullet as a small standalone picture (mini reel, flying token, legend)
+const bulletSVG = (x, cls = 'bsvg', mode = 'live') => `<svg class="${cls}" viewBox="-27 -27 54 54" aria-hidden="true">${bulletArt(x, mode)}</svg>`;
+const valText = x => x.k === 'cash' ? money(cashOf(x.v)) : label(x);
+const kindColor = x => { const a = artOf(x); return a ? a.c[0] : '#8c8c86'; };
+// Drum angle per side. The fired chamber is turned to the top, under the hammer.
+const drumRot = { player: 0, rival: 0 };
+const LOCK = '<path d="M-2.8 -0.5v-2a2.8 2.8 0 0 1 5.6 0v2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="-4" y="-0.8" width="8" height="5.6" rx="1.2" fill="currentColor"/>';
+function cylSVG(side, mark = {}) {
+  const cyl = bonus.b.cyl[side], id = side, N = BONUS.chambers, rot = drumRot[side];
+  let s = `<svg viewBox="0 0 200 200" aria-hidden="true"><defs>
+    <radialGradient id="steel-${id}" cx="38%" cy="32%" r="78%"><stop offset="0" stop-color="#b4bbc1"/><stop offset=".5" stop-color="#666d73"/><stop offset="1" stop-color="#2a2e32"/></radialGradient>
+    <radialGradient id="hole-${id}" cx="50%" cy="38%" r="62%"><stop offset="0" stop-color="#090807"/><stop offset="1" stop-color="#2f2925"/></radialGradient>
+    <radialGradient id="shine-${id}" cx="34%" cy="28%" r="70%"><stop offset="0" stop-color="#fff" stop-opacity=".6"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/></radialGradient>
+  </defs><path class="hammer" d="M92 -4h16l-3 12h-10z" fill="#2a2e32" stroke="#8d959b" stroke-width="1.5"/><g class="drum" transform="rotate(${rot} 100 100)"><circle cx="100" cy="100" r="95" fill="url(#steel-${id})" stroke="#1d2124" stroke-width="5"/>`;
+  for (let i = 0; i < N; i++) {
+    const deg = -90 + (i + 0.5) * 360 / N, a = deg * Math.PI / 180, fx = (100 + 87 * Math.cos(a)).toFixed(1), fy = (100 + 87 * Math.sin(a)).toFixed(1);
+    s += `<ellipse cx="${fx}" cy="${fy}" rx="5" ry="8" transform="rotate(${(deg + 90).toFixed(1)} ${fx} ${fy})" fill="#22272a" opacity=".8"/>`;
+  }
+  cyl.forEach((x, i) => {
+    const a = (-90 + i * 360 / N) * Math.PI / 180, cx = 100 + 66 * Math.cos(a), cy = 100 + 66 * Math.sin(a);
+    const gone = x && x.k === 'gone', stolen = x && x.k === 'stolen', filled = x && !gone && !stolen, locked = filled && x.locked;
+    const base = gone ? x.was : x;
+    const atRisk = filled && !locked && isValue(x);
+    const cls = ['ch', mark.now === i && 'now', mark.fresh === i && 'fresh', mark.hit === i && 'hit', mark.fired === i && 'fired', locked && 'locked'].filter(Boolean).join(' ');
+    s += `<g transform="translate(${cx.toFixed(1)} ${cy.toFixed(1)})"><g class="${cls}" data-i="${i}"${atRisk ? ` data-risk="${x.v >= 3 ? 2 : 1}"` : ''}><g class="up" transform="rotate(${-rot})">` +
+      `<circle class="hole" r="26" fill="url(#hole-${id})" stroke="#1d2124" stroke-width="3"/>` +
+      (base && !stolen ? bulletArt(base, gone ? 'gone' : locked ? 'locked' : 'live') : '') +
+      (stolen ? `<text y="3" text-anchor="middle" font-family="Alegreya Sans, Trebuchet MS, sans-serif" font-weight="800" font-size="9" fill="#8a7d6a">STOLEN</text>` : '') +
+      (locked ? `<g transform="translate(0 15.5)"><circle r="7" fill="#2a2724" stroke="#ece6da" stroke-width="1.4"/><g transform="translate(0 -.3)" style="color:#ece6da">${LOCK}</g></g>` : '') +
+      (gone ? `<path d="M-14 -14L14 14M14 -14L-14 14" stroke="#e0402f" stroke-width="5" stroke-linecap="round"/>` : '') +
+      `</g></g></g>`;
+  });
+  return s + `</g></svg>`;
+}
+function setDrumAngle(side, a, counter) {
+  const svg = $('cyl-' + side).querySelector('svg'); if (!svg) return;
+  svg.querySelector('.drum').setAttribute('transform', `rotate(${a.toFixed(2)} 100 100)`);
+  if (counter) svg.querySelectorAll('.up').forEach(u => u.setAttribute('transform', `rotate(${(-a).toFixed(2)})`));
+}
+// Turn a drum to an angle. counter = keep the labels upright while it turns.
+function animateDrum(side, to, ms, counter = true) {
+  const from = drumRot[side]; drumRot[side] = to;
+  if (reduced || ms <= 0) { setDrumAngle(side, to, true); return Promise.resolve(); }
+  return new Promise(res => {
+    const t0 = performance.now();
+    const step = now => {
+      const k = Math.min(1, (now - t0) / ms), q = k - 1, e = 1 + 2.2 * q * q * q + 1.2 * q * q;
+      setDrumAngle(side, from + (to - from) * e, counter);
+      if (k < 1) requestAnimationFrame(step); else { setDrumAngle(side, to, true); res(); }
+    };
+    requestAnimationFrame(step);
+  });
+}
+// Bring chamber i to the top. Revolvers only turn one way.
+function turnToChamber(side, i, ms) {
+  const step = 360 / BONUS.chambers, cur = drumRot[side];
+  let delta = (((-i * step - cur) % 360) + 360) % 360;
+  if (delta < 60) delta += 360;
+  sfx.ratchet(Math.min(0.5, ms / 1000));
+  return animateDrum(side, cur + delta, ms);
+}
+const xm = n => Math.round(n) ? '×' + Math.round(n) : '–';
+function renderSide(side, mark) {
+  $('cyl-' + side).innerHTML = cylSVG(side, mark);
+  const t = tally(bonus.b, side);
+  $('tally-' + side).innerHTML = `<div class="lk"><span>Locked</span><b>${xm(t.locked)}</b></div><div class="rk"><span>At risk</span><b>${xm(t.unfired)}</b></div>`;
+  if (side === 'player' && $('potLabel').dataset.final !== '1') updatePot();
+  if (side === 'rival') {
+    const hr = $('hub-rival'), prev = +hr.dataset.v || 0, v = t.locked;
+    if (v !== prev) { hr.classList.remove('up', 'down'); void hr.offsetWidth; hr.classList.add('up'); }
+    hr.dataset.v = v; countTo($('rivalVal'), v, 450, xm);
+  }
+  updateLead();
+}
+// Whoever has locked in more multiplier is winning the duel (Jim wins ties)
+function updateLead() {
+  const me = tally(bonus.b, 'player').locked, him = tally(bonus.b, 'rival').locked;
+  $('tally-player').querySelector('.lk')?.classList.toggle('lead', me > him);
+  $('tally-rival').querySelector('.lk')?.classList.toggle('lead', him > 0 && him >= me);
+}
+function renderBoth(marks = {}) { renderSide('player', marks.player); renderSide('rival', marks.rival); }
+// Payout so far: your bounty x your locked-in multipliers. It can only go up.
+let shownPot = 0, potAnim = 0;
+// Short enough to fit inside the revolver: $9,999 then $12.3K
+const hubFmt = n => n >= 10000 ? short(n) : money(n);
+function setPot(value, instantSet) {
+  const box = $('pot'), el = $('potVal'), from = shownPot, diff = value - from;
+  shownPot = value;
+  box.classList.toggle('hot', !!bonus && value >= bonus.bet * 20);
+  cancelAnimationFrame(potAnim);
+  if (instantSet || reduced || diff === 0) { el.textContent = hubFmt(value); if (instantSet) box.classList.remove('up', 'down'); return; }
+  box.classList.remove('up', 'down'); void box.offsetWidth; box.classList.add(diff > 0 ? 'up' : 'down');
+  const d = document.createElement('div'); d.className = 'delta ' + (diff > 0 ? 'up' : 'down');
+  d.textContent = (diff > 0 ? '+' : '−') + hubFmt(Math.abs(diff)); box.appendChild(d); setTimeout(() => d.remove(), 1200);
+  const c = vcenter(el);
+  if (diff > 0) { const n = Math.min(6, 2 + Math.round(Math.log10(1 + diff / bonus.bet) * 3)); for (let i = 0; i < n; i++) sfx.coin(i * 0.07, Math.min(7, i + 2)); FX.twinkle(c.x, c.y, 6); }
+  else sfx.potDown();
+  const t0 = performance.now(), dur = 550;
+  const step = now => { const k = Math.max(0, Math.min(1, (now - t0) / dur)), e = 1 - Math.pow(1 - k, 3);
+    // count in cents and never past the target, so the readout only ever climbs
+    el.textContent = hubFmt(k >= 1 ? value : Math.max(0, Math.floor((from + diff * e) * 100 + 1e-6) / 100)); if (k < 1) potAnim = requestAnimationFrame(step); };
+  potAnim = requestAnimationFrame(step);
+}
+function updatePot(instantSet) {
+  setPot(cashOf(bonus.b.pot * tally(bonus.b, 'player').mult), instantSet);
+}
+function setActive(side) { $('side-player').classList.toggle('active', side === 'player'); $('side-rival').classList.toggle('active', side === 'rival'); }
+function center(el) { const a = $('arena').getBoundingClientRect(), r = el.getBoundingClientRect(); return { x: r.left - a.left + r.width / 2, y: r.top - a.top + r.height / 2 }; }
+function popAt(el, text, cls, dy = 0) {
+  const c = center(el), p = document.createElement('div'); p.className = 'pop ' + cls; p.textContent = text;
+  $('arena').appendChild(p);
+  p.style.left = Math.max(2, Math.min($('arena').clientWidth - p.offsetWidth - 2, c.x - p.offsetWidth / 2)) + 'px'; p.style.top = (c.y - 18 + dy) + 'px';
+  setTimeout(() => p.remove(), 1300);
+}
+// a, b: points relative to the arena
+function tracer(a, b) {
+  const t = document.createElement('div'); t.className = 'tracer';
+  t.style.left = a.x + 'px'; t.style.top = a.y + 'px'; t.style.width = Math.hypot(b.x - a.x, b.y - a.y) + 'px';
+  t.style.transform = `rotate(${Math.atan2(b.y - a.y, b.x - a.x)}rad)`;
+  $('arena').appendChild(t); setTimeout(() => t.remove(), 320);
+  const f = document.createElement('div'); f.className = 'flash'; $('arena').appendChild(f); setTimeout(() => f.remove(), 300);
+}
+// Where the gun barrel is, for each cowboy (the art is mirrored for Jim)
+function muzzle(side) {
+  const r = $('cowboy-' + side).getBoundingClientRect(), a = $('arena').getBoundingClientRect();
+  const vx = r.left + r.width * (side === 'player' ? 0.97 : 0.03), vy = r.top + r.height * 0.39;
+  return { x: vx - a.left, y: vy - a.top, vx, vy };
+}
+function muzzleFlash(m) { const f = document.createElement('div'); f.className = 'muzzle'; f.style.left = m.x + 'px'; f.style.top = m.y + 'px'; $('arena').appendChild(f); setTimeout(() => f.remove(), 220); }
+function recoil(side) {
+  if (reduced) return; const d = side === 'player' ? -1 : 1;
+  $('cowboy-' + side).animate([{ transform: 'none' }, { transform: `translateX(${d * 7}px) rotate(${d * 7}deg)` }, { transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.2,.9,.3,1)' });
+}
+function reticle(el) {
+  const c = center(el), d = document.createElement('div'); d.className = 'reticle'; d.style.left = c.x + 'px'; d.style.top = c.y + 'px';
+  d.innerHTML = '<svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="19" fill="none" stroke="#e0402f" stroke-width="3"/><circle cx="30" cy="30" r="3" fill="#e0402f"/><path d="M30 1v17M30 42v17M1 30h17M42 30h17" stroke="#e0402f" stroke-width="3"/></svg>';
+  $('arena').appendChild(d); setTimeout(() => d.remove(), 950);
+}
+// A bullet token that flies from one element to another (viewport coordinates)
+function flyToken(x, fromEl, toEl, ms = 300, endSize = 0) {
+  if (reduced) return Promise.resolve();
+  const a = vcenter(fromEl), b = vcenter(toEl), size = endSize || toEl.getBoundingClientRect().width;
+  const t = document.createElement('div'); t.className = 'flybullet'; t.innerHTML = bulletSVG(x);
+  t.style.left = a.x + 'px'; t.style.top = a.y + 'px'; document.body.appendChild(t);
+  const lift = Math.min(60, Math.abs(b.x - a.x) * 0.25 + 20);
+  return t.animate([
+    { transform: 'translate(-50%,-50%) scale(1.25)' },
+    { transform: `translate(calc(-50% + ${(b.x - a.x) * 0.5}px), calc(-50% + ${(b.y - a.y) * 0.5 - lift}px)) scale(1.1) rotate(180deg)`, offset: 0.5 },
+    { transform: `translate(calc(-50% + ${b.x - a.x}px), calc(-50% + ${b.y - a.y}px)) scale(${(size / 44).toFixed(2)}) rotate(360deg)` },
+  ], { duration: ms, easing: 'cubic-bezier(.45,0,.65,1)' }).finished.then(() => t.remove(), () => t.remove());
+}
+const chamberEl = (side, i) => $('cyl-' + side).querySelector(`.ch[data-i="${i}"]`);
+// ---- Mini slot between the revolvers ----
+const randBullet = () => { const d = pick(BONUS.bullets, Math.random); return { k: d.k, v: d.v }; };
+function miniTok(x) { return `<div class="mtok">${bulletSVG(x)}</div>`; }
+let miniShown = [];
+function miniReset() {
+  miniShown = Array.from({ length: 5 }, randBullet);
+  $('miniStrip').innerHTML = miniShown.map(miniTok).join('');
+  $('mini').classList.remove('idle', 'to-player', 'to-rival');
+}
+const miniCenter = () => $('miniStrip').children[2];
+// Spin the reel (5 bullets showing) and stop with this bullet on the middle line
+async function miniSpin(result, ms) {
+  const strip = $('miniStrip'), next = [randBullet(), randBullet(), result, randBullet(), randBullet()];
+  const syms = [...next, ...Array.from({ length: Math.max(8, Math.round(ms / 45)) }, randBullet), ...miniShown];
+  strip.innerHTML = syms.map(miniTok).join('');
+  const pct = -((syms.length - 5) / syms.length) * 100;
+  sfx.reelSpin(ms / 1000);
+  await strip.animate([
+    { transform: `translateY(${pct}%)`, filter: 'blur(0px)' },
+    { filter: 'blur(1.5px)', offset: 0.2 }, { filter: 'blur(1px)', offset: 0.8 },
+    { transform: 'translateY(0)', filter: 'blur(0px)' },
+  ], { duration: reduced ? 60 : ms, easing: 'cubic-bezier(.25,.1,.25,1.12)' }).finished;
+  strip.innerHTML = next.map(miniTok).join(''); miniShown = next;
+  sfx.stop();
+  miniCenter().classList.add('land');
+}
+
+// ---- Bounty spins: free spins on the main reels that fill the bounty ----
+function setBountyBar(i, n) {
+  $('bbSpins').textContent = `${Math.min(i, n)} / ${n}`;
+  $('bbPips').innerHTML = Array.from({ length: n }, (_, k) => `<i class="${k < i - 1 || i > n ? 'used' : k === i - 1 ? 'now' : ''}"></i>`).join('');
+}
+function bumpBounty() { const box = $('bbPotBox'); box.classList.remove('bump'); void box.offsetWidth; box.classList.add('bump'); }
+async function runBounty(sc, how) {
+  const bb = bountySpins(sc), n = bb.spins.length;
+  bonus = { bet, how, sc, pot: bb.pot, b: null };
+  let pot = 0;
+  // the base game's win display (fading everything that didn't win) must not carry over into the bounty spins
+  clearWinLines(); unmarkCells(); reelsEl.classList.remove('showwin'); $('result').className = 'result'; $('result').textContent = '';
+  shownNum.set($('bbPot'), 0); $('bbPot').textContent = money(0);
+  setBountyBar(0, n); $('bountyBar').classList.remove('done'); $('bountyBar').hidden = false;
+  reelsEl.classList.add('bounty');
+  $('rule').dataset.base = $('rule').innerHTML; $('rule').innerHTML = 'Every bounty symbol adds to your bounty';
+  const intro = reelBanner(`${n} bounty spins`, 'gold');
+  sfx.power(); sfx.whistle(); partyLights(1400);
+  await wait(1700); intro.remove();
+  let cur = grid;
+  for (let i = 0; i < n; i++) {
+    setBountyBar(i + 1, n);
+    const spin = bb.spins[i];
+    await animateReels(cur, spin.grid, { bounty: true }); cur = spin.grid;
+    if (!spin.cash.length) { await wait(550); continue; }
+    await wait(300);
+    // every bounty symbol flies into the bounty pot
+    const flights = [];
+    for (const c of spin.cash) {
+      const cell = $('strip' + c.reel).children[c.row];
+      flights.push(flyToken({ k: 'cash', v: c.v }, cell, $('bbIcon'), 520, 26).then(() => {
+        pot += c.v; countTo($('bbPot'), cashOf(pot), 380); bumpBounty();
+        const p = vcenter($('bbIcon')); FX.twinkle(p.x, p.y, 5);
+        sfx.coin(0, Math.min(7, 2 + Math.round(Math.log2(c.v)))); sfx.coin(0.07, Math.min(7, 3 + Math.round(Math.log2(c.v))));
+        if (c.v >= 20) { FX.coins(p.x, p.y, c.v >= 500 ? 22 : c.v >= 100 ? 14 : 8); sfx.coins(c.v >= 500 ? 9 : c.v >= 100 ? 6 : 4, 0.5); }
+      }));
+      sfx.whoosh(); cell.classList.add('got');
+      await wait(200);
+    }
+    await Promise.all(flights);
+    await wait(600);
+  }
+  setBountyBar(n + 1, n); $('bountyBar').classList.add('done');
+  const total = cashOf(bb.pot), done = reelBanner(short(total), 'gold');
+  sfx.win(); partyLights(1600); const p = vcenter($('bbPotBox')); FX.coins(p.x, p.y, 16);
+  await wait(1700); done.remove();
+  introDuel(how);
+}
+
+function setupDuel(how) {
+  bonus.b = newBonus(bonus.pot);
+  reelsEl.classList.remove('bounty'); $('bountyBar').hidden = true; renderReels();
+  if ($('rule').dataset.base) $('rule').innerHTML = $('rule').dataset.base;
+  $('machine').hidden = true; $('duel').hidden = false; $('outcome').hidden = true;
+  $('st1').className = 'on'; $('st2').className = '';
+  $('cowboy-player').innerHTML = cowboySVG(false); $('cowboy-rival').innerHTML = cowboySVG(true);
+  $('cowboy-player').classList.remove('down', 'aiming'); $('cowboy-rival').classList.remove('down', 'aiming');
+  // the payout readout waits at $0 until the bounty pours in
+  $('potLabel').textContent = 'Payout'; $('potLabel').dataset.final = '1';
+  $('bountyVal').textContent = money(cashOf(bonus.pot));
+  const hr = $('hub-rival'); hr.dataset.v = 0; hr.classList.remove('up', 'down'); shownNum.delete($('rivalVal'));
+  drumRot.player = 0; drumRot.rival = 0;
+  shownPot = 0; renderBoth(); setPot(0, true); miniReset();
+  $('duel').scrollIntoView({ behavior: 'auto', block: 'start' });
+}
+async function introDuel(how) {
+  sfx.whoosh();
+  await irisSwap(() => setupDuel(how), 'Showdown');
+  sfx.whistle();
+  runBonus();
+}
+async function runBonus() {
+  const b = bonus.b;
+  await wait(700);
+  // the bounty pours into your revolver
+  sfx.whoosh();
+  await flyToken({ k: 'cash', v: 100 }, $('bountyVal'), $('potVal'), 650, 30);
+  $('potLabel').dataset.final = ''; updatePot();
+  await wait(900);
+
+  // ---- Stage 1: loading ----
+  while (!loadingDone(b)) {
+    const side = b.step % 2 === 0 ? 'player' : 'rival', foe = side === 'player' ? 'rival' : 'player', ch = Math.floor(b.step / 2);
+    const you = side === 'player';
+    setActive(side);
+    $('mini').classList.toggle('to-player', you); $('mini').classList.toggle('to-rival', !you);
+    renderSide(side, { now: ch });
+    // The bullet is decided now and revealed by the mini reel
+    const ev = loadNext(b), x = ev.bullet;
+    animateDrum(side, drumRot[side] + 720, 620, false);
+    sfx.ratchet(0.6);
+    await miniSpin(x, 650);
+    const big = !ev.stole && x.k === 'mult';
+    const rw = vcenter(miniCenter());
+    if (big) { sfx.power(); FX.twinkle(rw.x, rw.y, 8, kindColor(x)); } else sfx.click(0, 0.3);
+    await wait(big ? 380 : 220);
+    if (ev.stole) {
+      const fromEl = chamberEl(foe, ev.stole.chamber);
+      sfx.whoosh();
+      const fly = flyToken(ev.stole.bullet, fromEl, chamberEl(side, ch), 560);
+      popAt(fromEl, 'Stolen!', 'hit');
+      renderSide(foe, { hit: ev.stole.chamber });
+      await fly;
+      renderSide(side, { fresh: ch }); sfx.chunk();
+      const c = vcenter(chamberEl(side, ch)); FX.sparks(c.x, c.y, 16, [kindColor(ev.stole.bullet), '#9cc7f0', '#fff7c0']);
+      await wait(800);
+    } else {
+      const tok = miniCenter(), fly = flyToken(b.cyl[side][ch], tok, chamberEl(side, ch));
+      tok.classList.add('gone');
+      await fly;
+      renderSide(side, { fresh: ch }); sfx.chunk();
+      const el = chamberEl(side, ch), c = vcenter(el);
+      if (big) {
+        FX.sparks(c.x, c.y, 18, [kindColor(x), '#fff7c0', '#ffd76a']); FX.twinkle(c.x, c.y, 6, kindColor(x));
+        popAt(el, valText(x), 'tag');
+        if (x.v >= 10) { FX.sparks(c.x, c.y, 22, ['#b36bff', '#ffe680', '#fff7c0']); sfx.fanfare(); shake(6, 350); flashScreen('#c99aff', 0.25, 400); }
+      } else if (x.k === 'blank') { FX.dust(c.x, c.y, 6); sfx.thud(); }
+      else if (x.k === 'deadeye') { reticle($('cyl-' + foe)); sfx.ping(); FX.sparks(c.x, c.y, 10, ['#9cc7f0', '#ffffff']); }
+      else if (x.k === 'thief') { FX.dust(c.x, c.y, 4); sfx.thud(); }
+      await wait(big ? 650 : 430);
+    }
+  }
+
+  // ---- Stage 2: the duel ----
+  setActive(null); $('mini').classList.add('idle');
+  $('st1').className = ''; $('st2').className = 'on';
+  renderBoth();
+  await wait(500);
+  await coinFlip(b.first);
+  const draw = document.createElement('div'); draw.className = 'draw'; draw.textContent = 'Draw!'; $('arena').appendChild(draw);
+  sfx.bell(); shake(6, 350); flashScreen('#fff', 0.2, 250);
+  await wait(1100); draw.remove();
+  while (!b.over) {
+    const side = b.turn, foe = side === 'player' ? 'rival' : 'player', cb = $('cowboy-' + side);
+    setActive(side); cb.classList.add('aiming');
+    // Work out the shot first, then play it out on screen
+    const ev = shoot(b), m = muzzle(side), ang = side === 'player' ? -0.35 : Math.PI + 0.35;
+    sfx.hammer();
+    // the other cowboy's unfired good bullets tremble while he takes aim (your aim is sure: only the one you'll hit)
+    const risky = (ev.sharp || ev.deadeye) ? [chamberEl(foe, ev.chamber)].filter(el => el && el.dataset.risk) : [...$('cyl-' + foe).querySelectorAll('.ch[data-risk]')];
+    risky.forEach(el => el.classList.add('risk'));
+    if (foe === 'player' && risky.some(el => el.dataset.risk === '2')) sfx.heartbeat();
+    await wait(450); // give the red warning time to sink in
+    if (ev.aimed) { popAt(cb, 'Aim', 'tag', -30); sfx.ping(); }
+    await turnToChamber(side, ev.fired, 550);
+    if (ev.deadeye || ev.sharp) { reticle(chamberEl(foe, ev.chamber)); sfx.ping(); await wait(ev.deadeye ? 650 : 500); }
+    else await wait(300);
+    {
+      const x = ev.bullet, good = isValue(x);
+      // the fired bullet is locked in
+      renderSide(side, { fired: ev.fired });
+      const fc = vcenter(chamberEl(side, ev.fired));
+      if (ev.blank) {
+        sfx.blankShot(); FX.smoke(m.vx, m.vy, 4, { rMin: 4, r: 8 }); recoil(side);
+        popAt(cb, 'Blank', 'miss', -30);
+      } else {
+        sfx.shot(); muzzleFlash(m); recoil(side);
+        FX.sparks(m.vx, m.vy, 10, ['#fff7c0', '#ffd76a', '#ff9b4a'], { angle: ang, spread: 0.45, min: 200, max: 480 });
+        FX.smoke(m.vx, m.vy, 5);
+      }
+      setTimeout(() => {
+        sfx.lock(good);
+        FX.twinkle(fc.x, fc.y, good ? 7 : 3, '#ffe08a');
+        if (good) { popAt(chamberEl(side, ev.fired), 'Locked ' + valText(x), 'tag', -26); FX.sparks(fc.x, fc.y, 12, ['#ffd76a', '#fff7c0']); }
+      }, 140);
+      if (ev.blank) { /* no damage */ }
+      else if (ev.empty) {
+        // nothing left to hit: the shot only locks in the bullet
+        const c = center($('cyl-' + foe)), to = { x: c.x + rnd(-40, 40), y: c.y - rnd(110, 140) };
+        tracer(m, to); setTimeout(sfx.ricochet, 40);
+      } else {
+        const tEl = chamberEl(foe, ev.chamber), tc = center(tEl), vc = vcenter(tEl);
+        tracer(m, tc);
+        await wait(50);
+        const lost = ev.lost, valuable = isValue(lost);
+        const heavy = valuable && lost.v >= 3;
+        renderSide(foe, { hit: ev.chamber });
+        $('cyl-' + foe).querySelectorAll('.ch[data-risk]').forEach(el => el.classList.add('risk'));
+        FX.sparks(vc.x, vc.y, valuable ? 22 : 12); FX.chips(vc.x, vc.y, valuable ? 14 : 8, [kindColor(lost), '#2f3438', '#fff7c0']);
+        FX.smoke(vc.x, vc.y, 3, { rMin: 4, r: 8, color: 'rgba(60,55,50,0.5)' });
+        sfx.glass(); shake(heavy ? 10 : valuable ? 6 : 3, heavy ? 420 : 300);
+        if (heavy) flashScreen(foe === 'player' ? '#ff3a2a' : '#fff', 0.22, 220);
+        popAt(tEl, valuable ? '−' + valText(lost) : 'Hit', valuable ? 'hit' : 'miss');
+      }
+    }
+    cb.classList.remove('aiming');
+    // the bullets that weren't hit flash green: safe for now
+    await wait(450);
+    const survivors = [...$('cyl-' + foe).querySelectorAll('.ch[data-risk]')];
+    survivors.forEach(el => { el.classList.remove('risk'); el.classList.add('safe'); });
+    if (foe === 'player' && survivors.length) sfx.safe();
+    await wait(850);
+    survivors.forEach(el => el.classList.remove('safe'));
+    await wait(100);
+  }
+  setActive(null);
+  endBonus();
+}
+// Heads you shoot first, tails Jim does
+async function coinFlip(first) {
+  const o = document.createElement('div'); o.className = 'coinflip';
+  o.innerHTML = `<div class="coinstage"><div class="coin"><div class="face heads"><small>Heads</small>YOU</div><div class="face tails"><small>Tails</small>JIM</div></div></div><p class="coincap">Heads: you shoot first<br>Tails: Jim shoots first</p>`;
+  $('arena').appendChild(o);
+  const coin = o.querySelector('.coin'), turns = 6 * 360 + (first === 'rival' ? 180 : 0);
+  await wait(500);
+  sfx.click(0, 0.4); sfx.ping();
+  if (!reduced) {
+    const spinTick = setInterval(() => sfx.click(0, 0.08), 110);
+    await coin.animate([
+      { transform: 'translateY(0) rotateX(0deg) scale(1)' },
+      { transform: `translateY(-70px) rotateX(${turns * 0.55}deg) scale(1.25)`, offset: 0.5 },
+      { transform: `translateY(0) rotateX(${turns}deg) scale(1)` },
+    ], { duration: 1500, easing: 'cubic-bezier(.3,.6,.4,1)', fill: 'forwards' }).finished;
+    clearInterval(spinTick);
+  } else coin.style.transform = `rotateX(${turns}deg)`;
+  sfx.coin(0, 5); sfx.thud(); shake(3, 200);
+  const c = vcenter(coin); FX.twinkle(c.x, c.y, 8);
+  o.querySelector('.coincap').innerHTML = first === 'player' ? '<b>Heads!</b> You shoot first' : '<b>Tails!</b> Jim shoots first';
+  o.classList.add('done');
+  $('side-' + first).classList.add('active');
+  await wait(1300);
+  if (!reduced) await o.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 250 }).finished;
+  o.remove();
+}
+async function endBonus() {
+  const b = bonus.b, r = result(b), bb = bonus.bet, pot = cashOf(b.pot), payout = cashOf(r.payoutUnits);
+  const loser = r.won ? 'rival' : 'player';
+  await wait(300);
+  $('cowboy-' + loser).classList.add('down');
+  setTimeout(() => { const c = vcenter($('cowboy-' + loser)); FX.dust(c.x, c.y + 34, 14); sfx.thud(); shake(4, 260); }, reduced ? 0 : 520);
+  $('potLabel').dataset.final = '1'; $('pot').classList.remove('up', 'down');
+  await wait(1000);
+  // Win the duel and Jim's locked-in multipliers ride over to your revolver, one by one
+  if (r.won && r.him > 0) {
+    let acc = r.me;
+    const his = b.cyl.rival.map((x, i) => [x, i]).filter(([x]) => isValue(x) && x.locked);
+    for (const [x, i] of his) {
+      sfx.whoosh();
+      await flyToken(x, chamberEl('rival', i), $('potVal'), 650, 34);
+      acc += x.v; setPot(cashOf(b.pot * acc)); sfx.lock(true);
+      popAt($('pot'), '+' + label(x), 'tag', -44);
+      await wait(550);
+    }
+  }
+  setPot(payout);
+  await wait(500);
+  if (payout >= bb * 15) await bigWin(payout, payout >= bb * 50 ? 'Mega win!' : 'Big win!');
+  else if (r.won) { sfx.fanfare(); const c = vcenter($('pot')); FX.coins(c.x, c.y, 26); FX.shower(1.2, 25); }
+  else { sfx.sad(); const c = vcenter($('pot')); FX.coins(c.x, c.y, 10); sfx.coins(4, 0.4); }
+  const o = $('outcome'); o.hidden = false; o.className = 'outcome ' + (r.won ? 'won' : 'lost');
+  const how = r.won ? (r.him > 0 ? `${money(pot)} bounty × (your ×${r.me} + Jim's ×${r.him})` : `${money(pot)} bounty × ${r.me}`)
+    : (r.me > 0 ? `You keep ${money(pot)} bounty × ${r.me}` : `You keep the ${money(pot)} bounty`);
+  o.innerHTML = `<h3>${r.won ? 'You win' : 'Jim wins'}</h3><div class="big" id="outBig">$0</div><p>${how}</p>`;
+  shownNum.set($('outBig'), 0); countTo($('outBig'), payout, 900);
+  o.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
+  await wait(2600);
+  balance += payout; save();
+  spinPay += payout;
+  await irisSwap(() => {
+    $('duel').hidden = true; $('machine').hidden = false; bonus = null; $('pot').classList.remove('hot');
+    $('machine').scrollIntoView({ behavior: 'auto', block: 'start' });
+  }, '');
+  setPayout(spinPay);
+  $('result').className = 'result big';
+  $('result').textContent = r.won ? `Duel won: ${money(payout)}` : `Duel lost: ${money(payout)}`;
+  if (spinPay > 0) { const pb = vcenter($('payoutBox')); FX.coins(pb.x, pb.y, 14); sfx.coins(5, 0.4); }
+  spinning = false; updateMeters();
+}
+// Legend: every bullet, drawn the same way as in the revolvers
+(() => {
+  const B = (k, v, mode) => `<i class="lb">${bulletSVG({ k, v }, 'bsvg', mode)}</i>`;
+  const row = (icons, text, wide) => `<div${wide ? ' class="wide"' : ''}><span class="lbs">${icons}</span><span>${text}</span></div>`;
+  $('legend').innerHTML =
+    row(B('mult', 2) + B('mult', 3) + B('mult', 5) + B('mult', 10), 'Multipliers: fire one to lock it in. Your bounty is multiplied by all you lock in, added together.', true) +
+    row(B('thief', 0), 'Steal (only in your gun): takes his best multiplier') +
+    row(B('deadeye', 0), 'Aim: your next shot fires your best multiplier and hits his best') +
+    row(`<i class="lb lockd">${bulletSVG({ k: 'mult', v: 3 }, 'bsvg', 'locked')}<svg class="lk" viewBox="-7.5 -7.5 15 15"><circle r="7" fill="#2a2724" stroke="#ece6da" stroke-width="1.4"/><g transform="translate(0 -.3)" style="color:#ece6da">${LOCK}</g></svg></i>`, 'Fired and locked in, can\'t be hit') +
+    `<div class="wide"><span>Lock in at least as much multiplier as Jim to win the duel, and his locked-in multipliers are added to yours.</span></div>`;
+})();
+
+// ---------- Bonus buy ----------
+$('buy').onclick = () => {
+  if (spinning) return;
+  $('buyText').textContent = `Pay ${money(toCents(BUY.price * bet))} (${BUY.price}× your ${money(bet)} bet) for 5 bounty spins and the showdown with Jim?`;
+  $('buyConfirm').hidden = false; $('buy').hidden = true; $('buyYes').focus();
+};
+$('buyNo').onclick = () => { $('buyConfirm').hidden = true; $('buy').hidden = false; };
+$('buyYes').onclick = () => {
+  const price = toCents(BUY.price * bet);
+  if (spinning || balance < price) return;
+  $('buyConfirm').hidden = true; $('buy').hidden = false;
+  ac(); sfx.coins(4, 0.3); spinning = true; balance -= price; stats.wagered += price; stats.duels++; save(); updateMeters();
+  spinPay = 0; setPayout(null);
+  if (instant) { spinPay = instantBonus(0, 3); setPayout(spinPay); celebrate(spinPay); spinning = false; updateMeters(); return; }
+  runBounty(3, 'buy');
+};
+
+// ---------- Wire up ----------
+$('bets').innerHTML = BETS.map(v => `<button class="chip" data-v="${v}">$${v}</button>`).join('');
+$('bets').onclick = e => { const b = e.target.closest('button'); if (!b || spinning) return; bet = +b.dataset.v; updateMeters(); renderPaytable(); };
+$('spin').onclick = spin;
+document.addEventListener('keydown', e => { if (e.code === 'Space' && !$('machine').hidden && document.activeElement?.tagName !== 'BUTTON') { e.preventDefault(); spin(); } });
+function showInstant() { $('instant').textContent = instant ? 'Instant spin: on' : 'Instant spin: off'; $('instant').setAttribute('aria-pressed', String(instant)); }
+$('instant').onclick = () => { instant = !instant; showInstant(); try { localStorage.setItem('hnr_instant', instant ? '1' : '0'); } catch (e) {} };
+showInstant();
+$('sound').onclick = () => { soundOn = !soundOn; if (master) master.gain.setTargetAtTime(soundOn ? 0.9 : 0, actx.currentTime, 0.05); if (soundOn) ac(); $('sound').textContent = soundOn ? 'Sound on' : 'Sound off'; $('sound').setAttribute('aria-pressed', String(soundOn)); };
+$('resetStats').onclick = () => { if (spinning) return; stats = { spins: 0, start: balance, wagered: 0, paid: 0, duels: 0 }; save(); $('result').textContent = 'Stats reset'; };
+$('refill').onclick = () => { if (spinning) return; balance += 1000; stats.start += 1000; save(); updateMeters(); $('result').textContent = '+$1,000 added'; };
+// A small 5 x 5 picture of a shape
+const SHAPE_CELLS = {
+  line3: [[1, 2], [2, 2], [3, 2]], line4: [[0, 4], [1, 3], [2, 2], [3, 1]], line5: [0, 1, 2, 3, 4].map(x => [x, 2]),
+  square: [[1, 1], [2, 1], [1, 2], [2, 2]], cross: [[2, 1], [1, 2], [2, 2], [3, 2], [2, 3]],
+  group: [[1, 1], [2, 1], [2, 2], [3, 2], [2, 3], [1, 3]], v: VS[0], corners: CORNERS, x: XCELLS, frame: FRAME,
+  rift: [[0, 2], [1, 2], [1, 1], [2, 1], [3, 1], [3, 2], [3, 3], [4, 3]],
+};
+function shapeIcon(k) {
+  const on = new Set(SHAPE_CELLS[k].map(c => c.join(',')));
+  let r = '';
+  const col = k === 'rift' ? '#7b2fbf' : '#b83a2c';
+  for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) r += `<rect x="${x * 8 + 1}" y="${y * 8 + 1}" width="6.4" height="6.4" rx="1.4" fill="${on.has(x + ',' + y) ? col : '#c9b48a'}"/>`;
+  return `<svg class="shapeic" viewBox="0 0 41 41" aria-hidden="true">${r}</svg>`;
+}
+const SHAPE_TEXT = {
+  line3: 'Across, down or diagonal', line4: 'Across, down or diagonal', line5: 'A full row, reel or diagonal',
+  square: '2 × 2 of the same', cross: 'A plus sign of 5', group: '6 or more touching along their sides', v: 'A V across all five reels',
+  corners: 'The same in all four corners', x: 'Both long diagonals', frame: 'The whole outer ring',
+};
+function renderPaytable() {
+  $('payBet').textContent = money(bet);
+  const short$ = v => v >= 10000 ? '$' + (v / 1000).toFixed(v % 1000 ? 1 : 0) + 'K' : money(v);
+  $('shapes').innerHTML = Object.keys(PATTERNS).map(k => { const m = PATTERNS[k].mult;
+    return `<div class="shapecard">${shapeIcon(k)}<div><b>${PATTERNS[k].name}${k === 'group' ? ' of 6+' : ''}</b> <em>${Array.isArray(m) ? '×' + m[0] + ' to ×' + m[m.length - 1] : '×' + m}</em><br>${SHAPE_TEXT[k]}</div></div>`; }).join('');
+  const cols = ['line3', 'line4', 'square', 'line5', 'cross', 'v', 'corners'];
+  $('paygrid').innerHTML = `<thead><tr><th></th>${cols.map(c => `<th>${shapeIcon(c)}<small>${PATTERNS[c].name.replace('Line of ', 'Line ').replace('Four corners', 'Corners')}</small></th>`).join('')}</tr></thead><tbody>` +
+    ['STAR', 'BAG', 'SHOE', 'CACTUS', 'A', 'K', 'Q', 'J'].map(k => `<tr><td class="sym" title="${SYMBOLS[k].name}">${ART[k]}</td>` +
+      cols.map(c => `<td>${short$(payFor(k, c, 5) * bet / COIN)}</td>`).join('') + '</tr>').join('') + '</tbody>';
+  $('voidTable').innerHTML =
+    `<div class="pay void">${ART.GOO}<div><b>DNA goo</b><br>3 or more touching spread the corruption</div></div>` +
+    `<div class="pay void">${ART.BOMB}<div><b>Void bomb</b><br>Blows up the 8 symbols around it. Each one pays its value. Sets off other bombs</div></div>` +
+    `<div class="pay void">${ART.X}<div><b>Corrupted</b><br>Eaten by the corruption. Pays as part of it</div></div>` +
+    `<div class="pay void">${shapeIcon('rift')}<div><b>Rift</b><br>Corruption from reel 1 to reel 5 pays ${short$(CORRUPTION.rift * bet / COIN)} extra</div></div>`;
+  $('voidSizes').innerHTML = CORRUPTION.pays.map((p, i) => `<span><b>${i + CORRUPT_MIN}${i === CORRUPTION.pays.length - 1 ? '+' : ''}</b>${money(p * bet / COIN)}</span>`).join('');
+  $('blastVals').innerHTML = ['STAR', 'BAG', 'SHOE', 'W', 'CACTUS', 'A', 'K', 'Q', 'J', 'GOO'].map(k => `<span title="${SYMBOLS[k].name}">${ART[k]}${money(blastValue(k) * bet / COIN)}</span>`).join('');
+  $('ruleVoid').innerHTML = `· 3 touching ${ART.GOO} spread · ${ART.BOMB} explodes`;
+  $('ruleShapes').innerHTML = ['line3', 'square', 'cross', 'group', 'v', 'corners'].map(k => `<span title="${PATTERNS[k].name}">${shapeIcon(k)}</span>`).join('');
+  $('paytable').innerHTML =
+    `<div class="pay">${ART.W}<div><b>Wanted (wild)</b><br>Counts as every symbol</div></div>` +
+    `<div class="pay">${ART.S}<div><b>Duel target</b><br>Holds its reel and respins the reels to its right. 3, 4 or 5 give 5, 7 or 10 bounty spins, then the showdown</div></div>`;
+}
+renderPaytable();
+document.querySelectorAll('.buyx').forEach(e => { e.textContent = BUY.price; });
+$('bountyTable').innerHTML = BOUNTY.cash.map(d => { const n = +(d.v * BONUS.unit).toFixed(2);
+  return `<div class="pay">${bulletSVG({ k: 'cash', v: d.v })}<div><b>${BART['c' + d.v].name}</b><br>${n} × your bet</div></div>`; }).join('');
+renderReels(); updateMeters(); renderStats();
+</script>
