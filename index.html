@@ -299,6 +299,8 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .cyl svg { width: 100%; height: 100%; display: block; overflow: visible; }
 .cyl .ch.fresh { animation: chpop 0.4s cubic-bezier(.2,1.6,.4,1); transform-box: fill-box; transform-origin: center; }
 .cyl .ch.now circle.hole { stroke: #fff7e0; stroke-width: 4; }
+.cyl .ch .nextring { fill: none; stroke: #ffd76a; stroke-width: 4.5; filter: drop-shadow(0 0 5px #ffcf5a); animation: nextpulse 0.8s ease-in-out infinite alternate; }
+@keyframes nextpulse { from { stroke-opacity: 1; } to { stroke-opacity: 0.35; } }
 .cyl .ch.fired { animation: lockin 0.55s cubic-bezier(.2,1.6,.4,1); transform-box: fill-box; transform-origin: center; }
 .cyl .ch.risk { animation: tremble 0.11s linear infinite; transform-box: fill-box; transform-origin: center; }
 .cyl .ch.risk circle.hole { stroke: #e0402f; stroke-width: 4; }
@@ -573,8 +575,8 @@ h1 { background: linear-gradient(100deg, var(--brass-hi) 0 42%, #fff8de 50%, var
       <li><b>Bounty spins.</b> First you get free bounty spins: 5 for three duel targets, 7 for four and 10 for five. Only bounty symbols count in these spins. Every one that lands is added to your bounty. Every bounty spin brings at least one, and about two on average. Each symbol is worth a fixed part of your bet: boot 0.05, horseshoe 0.1, hat 0.25, sheriff star 1, gold bars 5 and diamonds 25 bets.</li>
       <li><b>Loading.</b> You and Jim each load a six-shooter from the bullet reel, taking turns one bullet at a time. Every bullet is a multiplier (×2, ×3, ×5 and the rare ×10) or a combat bullet.</li>
       <li><b>Steal</b> takes Jim's best multiplier the moment it's loaded. Only your gun loads them: Jim never gets one.</li>
-      <li><b>Aim</b> makes your next duel shot an aimed one. It fires your best multiplier, so that one is locked in, and it hits the other cowboy's best unfired multiplier.</li>
-      <li><b>The duel.</b> A coin flip decides who shoots first: heads you, tails Jim. Then you take turns. Every shot fires one of the shooter's own bullets, picked at random, and that bullet is <b>locked in</b>: it counts for good and can't be destroyed any more. Every shot hits and destroys one of the other cowboy's unfired bullets. You're the sharper shot: yours always take Jim's best unfired multiplier, while his hit a random one of your unfired bullets. The duel goes on until every bullet has been fired or destroyed.</li>
+      <li><b>Aim</b> makes your next duel shot an aimed one. The drum turns straight to your best multiplier and fires it, so that one is locked in, and it hits the other cowboy's best unfired multiplier. The order carries on from there.</li>
+      <li><b>The duel.</b> A coin flip decides who shoots first: heads you, tails Jim. Then you take turns. Each gun fires its bullets in order, turning one chamber at a time; the glowing chamber marked NEXT is the bullet it fires next. A chamber that has been shot out is skipped with a dry click, so no turn is ever wasted. The fired bullet is <b>locked in</b>: it counts for good and can't be destroyed any more. Every shot hits and destroys one of the other cowboy's unfired bullets. You're the sharper shot: yours always take Jim's best unfired multiplier, while his hit a random one of your unfired bullets. The duel goes on until every bullet has been fired or destroyed.</li>
       <li><b>Payout.</b> You're paid your bounty times your locked-in multipliers, added together, so ×2 and ×3 make ×5. With none locked in you get the bounty. The payout only ever goes up.</li>
       <li><b>Winning the duel.</b> If you've locked in at least as much multiplier as Jim when the shooting stops, you win and his locked-in multipliers are added to yours. You win ties. You'll win about 4 duels in 5. Losing the duel never takes anything away: you keep your bounty times your own locked-in multipliers.</li>
     </ul>
@@ -856,9 +858,9 @@ function countOf(grid, k, upTo = REELS) {
 // ---------- Bonus engine ----------
 // Stage 0, bounty spins: free spins where cowboy cash symbols land on the reels. Each one adds its value to the pot.
 // Stage 1, loading: each six-shooter gets 6 bullets (multipliers and combat bullets), loaded one at a time, alternating.
-// Stage 2, showdown: a coin flip picks who shoots first. Each shot fires one of the shooter's own bullets, which locks
-// it in for good, and always destroys one of the other cowboy's unfired bullets. It runs until every bullet is
-// fired or destroyed.
+// Stage 2, showdown: a coin flip picks who shoots first. Each gun fires its bullets in order, chamber 1 to 6, and
+// skips chambers that have been shot out, so no turn is wasted. A shot locks the fired bullet in for good, and always
+// destroys one of the other cowboy's unfired bullets. It runs until every bullet is fired or destroyed.
 // Payout: pot x your locked-in multipliers (x1 if you locked none). It can only go up. Win the duel (more locked-in
 // multiplier than Jim, or the same) and his locked-in multipliers are added to yours.
 const BONUS = {
@@ -877,7 +879,7 @@ const BONUS = {
 };
 const BOUNTY = {
   spins: { 3: 5, 4: 7, 5: 10 },  // free spins for 3, 4, 5+ duel targets
-  cashChance: 0.069,               // chance each cell shows a cash symbol
+  cashChance: 0.0702,              // chance each cell shows a cash symbol
   everySpin: true,                 // every bounty spin brings at least one
   // boot 0.05 bet, horseshoe 0.1, hat 0.25, sheriff star 1, gold bars 5, diamonds 25
   cash: [{ v: 1, w: 69 }, { v: 2, w: 29 }, { v: 5, w: 4.5 }, { v: 20, w: 1 }, { v: 100, w: 0.18 }, { v: 500, w: 0.026 }],
@@ -910,6 +912,7 @@ function newBonus(pot, rng = Math.random) {
     cyl: { player: Array(BONUS.chambers).fill(null), rival: Array(BONUS.chambers).fill(null) },
     step: 0,                        // loading step, 0..13
     sure: { player: 0, rival: 0 },  // aimed shots this side has banked
+    next: { player: 0, rival: 0 },  // the chamber each gun turns to next
     first: rng() < 0.5 ? 'player' : 'rival', // the coin flip: heads you, tails Jim
     turn: null, over: false,
   };
@@ -918,6 +921,12 @@ const isValue = b => b && b.k === 'mult';
 // still in the drum and not fired yet: can be fired by its owner, or destroyed by the other cowboy
 const live = b => b && b.k !== 'gone' && b.k !== 'stolen' && !b.locked;
 const canFire = (b, side) => b.cyl[side].some(live);
+// The chamber a gun fires next: the first live bullet from its next chamber on, skipping chambers already shot out
+function nextLive(b, side) {
+  const N = BONUS.chambers;
+  for (let k = 0; k < N; k++) { const j = (b.next[side] + k) % N; if (live(b.cyl[side][j])) return j; }
+  return -1;
+}
 // locked: multiplier already fired (safe). unfired: multiplier still in the drum (at risk).
 function tally(b, side) {
   let locked = 0, unfired = 0;
@@ -958,12 +967,13 @@ const loadingDone = b => b.step >= BONUS.chambers * 2;
 function shoot(b, rng = Math.random) {
   const side = b.turn, foe = other(side);
   const ev = { side };
-  // an aimed shot fires your own best multiplier (locking it in) and takes his best one
+  // the gun fires its next bullet in order. An aimed shot turns straight to your own best multiplier instead (locking
+  // it in) and takes his best one; the order carries on from there.
   const aimed = b.sure[side] > 0;
   if (aimed) { b.sure[side]--; ev.aimed = true; }
-  const mine = b.cyl[side].map((x, i) => live(x) ? i : -1).filter(i => i >= 0);
   let i = aimed ? bestChamber(b, side) : -1;
-  if (i < 0) i = mine[Math.floor(rng() * mine.length)];
+  if (i < 0) i = nextLive(b, side);
+  b.next[side] = (i + 1) % BONUS.chambers;
   b.cyl[side][i] = { ...b.cyl[side][i], locked: true };
   ev.fired = i; ev.bullet = b.cyl[side][i];
   if (ev.bullet.k === 'blank') ev.blank = true;
@@ -999,7 +1009,7 @@ function playBonus(sc = 3, rng = Math.random) {
   return { bounty, b, ...result(b) };
 }
 
-if (typeof module !== 'undefined') module.exports = { spinBoard, rightmostTarget, SCATTER_CHANCE, SYMBOLS, PATTERNS, GROUP_MIN, CORRUPT_MIN, CORRUPTION, BLAST, isCorrupt, corruption, explode, spinResult, blastValue, REELS, ROWS, COIN, PREMIUM, LINES, VS, spinGrid, evaluate, countOf, payFor, BONUS, BOUNTY, BUY, bountyGrid, bountySpins, newBonus, loadNext, loadingDone, shoot, result, tally, playBonus, live };
+if (typeof module !== 'undefined') module.exports = { nextLive, spinBoard, rightmostTarget, SCATTER_CHANCE, SYMBOLS, PATTERNS, GROUP_MIN, CORRUPT_MIN, CORRUPTION, BLAST, isCorrupt, corruption, explode, spinResult, blastValue, REELS, ROWS, COIN, PREMIUM, LINES, VS, spinGrid, evaluate, countOf, payFor, BONUS, BOUNTY, BUY, bountyGrid, bountySpins, newBonus, loadNext, loadingDone, shoot, result, tally, playBonus, live };
 
 
 // ---------- Art (placeholder SVG) ----------
@@ -1133,6 +1143,7 @@ const sfx = {
   thud: (when = 0) => { osc({ type: 'sine', f0: 110, f1: 40, dur: 0.3, vol: 0.6, when }); nz({ f0: 400, dur: 0.15, vol: 0.2, when }); },
   heartbeat: () => { sfx.thud(0); sfx.thud(0.2); },
   tracer: () => { nz({ type: 'highpass', f0: 2800, dur: 0.06, vol: 0.3 }); osc({ type: 'sine', f0: 150, f1: 50, dur: 0.12, vol: 0.3 }); osc({ type: 'sine', f0: 3400, f1: 700, dur: 0.3, vol: 0.045, wet: 0.4, when: 0.02 }); },
+  dryClick: () => { sfx.click(0, 0.4); osc({ type: 'square', f0: 1800, f1: 900, dur: 0.03, vol: 0.05 }); nz({ type: 'bandpass', f0: 4200, q: 4, dur: 0.04, vol: 0.18 }); },
   hit: () => { osc({ type: 'sine', f0: 340, f1: 90, dur: 0.07, vol: 0.16 }); nz({ type: 'bandpass', f0: 1500, q: 1.5, dur: 0.05, vol: 0.13 }); },
   stir: () => osc({ type: 'sine', f0: 320, f1: 180, dur: 0.35, vol: 0.06, vib: { rate: 14, depth: 25 } }),
   blub: () => { osc({ type: 'sine', f0: 380, f1: 900, dur: 0.18, vol: 0.08, wet: 0.4 }); osc({ type: 'sine', f0: 560, f1: 1300, dur: 0.14, vol: 0.05, when: 0.08, wet: 0.4 }); },
@@ -1903,6 +1914,8 @@ function cylSVG(side, mark = {}) {
     const deg = -90 + (i + 0.5) * 360 / N, a = deg * Math.PI / 180, fx = (100 + 87 * Math.cos(a)).toFixed(1), fy = (100 + 87 * Math.sin(a)).toFixed(1);
     s += `<ellipse cx="${fx}" cy="${fy}" rx="5" ry="8" transform="rotate(${(deg + 90).toFixed(1)} ${fx} ${fy})" fill="#22272a" opacity=".8"/>`;
   }
+  // during the duel the chamber that fires next glows, with a NEXT tag
+  const nx = loadingDone(bonus.b) && !bonus.b.over ? nextLive(bonus.b, side) : -1;
   cyl.forEach((x, i) => {
     const a = (-90 + i * 360 / N) * Math.PI / 180, cx = 100 + 66 * Math.cos(a), cy = 100 + 66 * Math.sin(a);
     const gone = x && x.k === 'gone', stolen = x && x.k === 'stolen', filled = x && !gone && !stolen, locked = filled && x.locked;
@@ -1915,6 +1928,7 @@ function cylSVG(side, mark = {}) {
       (stolen ? `<text y="3" text-anchor="middle" font-family="Alegreya Sans, Trebuchet MS, sans-serif" font-weight="800" font-size="9" fill="#8a7d6a">STOLEN</text>` : '') +
       (locked ? `<g transform="translate(0 15.5)"><circle r="7" fill="#2a2724" stroke="#ece6da" stroke-width="1.4"/><g transform="translate(0 -.3)" style="color:#ece6da">${LOCK}</g></g>` : '') +
       (gone ? `<path d="M-14 -14L14 14M14 -14L-14 14" stroke="#e0402f" stroke-width="5" stroke-linecap="round"/>` : '') +
+      (i === nx ? `<circle class="nextring" r="29"/><g transform="translate(0 17)"><rect x="-14" y="-5.5" width="28" height="11" rx="5.5" fill="#ffd76a" stroke="#6b3a12" stroke-width="1.2"/><text y="3.2" text-anchor="middle" font-family="Alegreya Sans, Trebuchet MS, sans-serif" font-weight="800" font-size="8.5" letter-spacing=".5" fill="#3a1f10">NEXT</text></g>` : '') +
       `</g></g></g>`;
   });
   return s + `</g></svg>`;
@@ -1938,13 +1952,18 @@ function animateDrum(side, to, ms, counter = true) {
     requestAnimationFrame(step);
   });
 }
-// Bring chamber i to the top. Revolvers only turn one way.
-function turnToChamber(side, i, ms) {
-  const step = 360 / BONUS.chambers, cur = drumRot[side];
-  let delta = (((-i * step - cur) % 360) + 360) % 360;
-  if (delta < 60) delta += 360;
-  sfx.ratchet(Math.min(0.5, ms / 1000));
-  return animateDrum(side, cur + delta, ms);
+// Turn the drum chamber by chamber until chamber i is under the hammer. Revolvers only turn one way. Each chamber
+// passed gives a click; one that was shot out gives a dry click and a puff of dust.
+async function advanceTo(side, i) {
+  const N = BONUS.chambers, step = 360 / N, at = ((Math.round(-drumRot[side] / step) % N) + N) % N, n = (i - at + N) % N;
+  for (let k = 1; k <= n; k++) {
+    const j = (at + k) % N, last = k === n;
+    await animateDrum(side, drumRot[side] - step, last ? 240 : 170);
+    if (!last && !live(bonus.b.cyl[side][j]) && !(bonus.b.cyl[side][j] || {}).locked) {
+      sfx.dryClick(); const el = chamberEl(side, j); if (el) { const c = vcenter(el); FX.dust(c.x, c.y, 3); }
+      await wait(110);
+    } else sfx.click(0, last ? 0.32 : 0.2);
+  }
 }
 const xm = n => Math.round(n) ? '×' + Math.round(n) : '–';
 function renderSide(side, mark) {
@@ -2208,7 +2227,7 @@ async function runBonus() {
     if (foe === 'player' && risky.some(el => el.dataset.risk === '2')) sfx.heartbeat();
     await wait(450); // give the red warning time to sink in
     if (ev.aimed) { popAt(cb, 'Aim', 'tag', -30); sfx.ping(); }
-    await turnToChamber(side, ev.fired, 550);
+    await advanceTo(side, ev.fired);
     if (ev.deadeye || ev.sharp) { reticle(chamberEl(foe, ev.chamber)); sfx.ping(); await wait(ev.deadeye ? 650 : 500); }
     else await wait(300);
     {

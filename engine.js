@@ -255,9 +255,9 @@ function countOf(grid, k, upTo = REELS) {
 // ---------- Bonus engine ----------
 // Stage 0, bounty spins: free spins where cowboy cash symbols land on the reels. Each one adds its value to the pot.
 // Stage 1, loading: each six-shooter gets 6 bullets (multipliers and combat bullets), loaded one at a time, alternating.
-// Stage 2, showdown: a coin flip picks who shoots first. Each shot fires one of the shooter's own bullets, which locks
-// it in for good, and always destroys one of the other cowboy's unfired bullets. It runs until every bullet is
-// fired or destroyed.
+// Stage 2, showdown: a coin flip picks who shoots first. Each gun fires its bullets in order, chamber 1 to 6, and
+// skips chambers that have been shot out, so no turn is wasted. A shot locks the fired bullet in for good, and always
+// destroys one of the other cowboy's unfired bullets. It runs until every bullet is fired or destroyed.
 // Payout: pot x your locked-in multipliers (x1 if you locked none). It can only go up. Win the duel (more locked-in
 // multiplier than Jim, or the same) and his locked-in multipliers are added to yours.
 const BONUS = {
@@ -276,7 +276,7 @@ const BONUS = {
 };
 const BOUNTY = {
   spins: { 3: 5, 4: 7, 5: 10 },  // free spins for 3, 4, 5+ duel targets
-  cashChance: 0.069,               // chance each cell shows a cash symbol
+  cashChance: 0.0702,              // chance each cell shows a cash symbol
   everySpin: true,                 // every bounty spin brings at least one
   // boot 0.05 bet, horseshoe 0.1, hat 0.25, sheriff star 1, gold bars 5, diamonds 25
   cash: [{ v: 1, w: 69 }, { v: 2, w: 29 }, { v: 5, w: 4.5 }, { v: 20, w: 1 }, { v: 100, w: 0.18 }, { v: 500, w: 0.026 }],
@@ -309,6 +309,7 @@ function newBonus(pot, rng = Math.random) {
     cyl: { player: Array(BONUS.chambers).fill(null), rival: Array(BONUS.chambers).fill(null) },
     step: 0,                        // loading step, 0..13
     sure: { player: 0, rival: 0 },  // aimed shots this side has banked
+    next: { player: 0, rival: 0 },  // the chamber each gun turns to next
     first: rng() < 0.5 ? 'player' : 'rival', // the coin flip: heads you, tails Jim
     turn: null, over: false,
   };
@@ -317,6 +318,12 @@ const isValue = b => b && b.k === 'mult';
 // still in the drum and not fired yet: can be fired by its owner, or destroyed by the other cowboy
 const live = b => b && b.k !== 'gone' && b.k !== 'stolen' && !b.locked;
 const canFire = (b, side) => b.cyl[side].some(live);
+// The chamber a gun fires next: the first live bullet from its next chamber on, skipping chambers already shot out
+function nextLive(b, side) {
+  const N = BONUS.chambers;
+  for (let k = 0; k < N; k++) { const j = (b.next[side] + k) % N; if (live(b.cyl[side][j])) return j; }
+  return -1;
+}
 // locked: multiplier already fired (safe). unfired: multiplier still in the drum (at risk).
 function tally(b, side) {
   let locked = 0, unfired = 0;
@@ -357,12 +364,13 @@ const loadingDone = b => b.step >= BONUS.chambers * 2;
 function shoot(b, rng = Math.random) {
   const side = b.turn, foe = other(side);
   const ev = { side };
-  // an aimed shot fires your own best multiplier (locking it in) and takes his best one
+  // the gun fires its next bullet in order. An aimed shot turns straight to your own best multiplier instead (locking
+  // it in) and takes his best one; the order carries on from there.
   const aimed = b.sure[side] > 0;
   if (aimed) { b.sure[side]--; ev.aimed = true; }
-  const mine = b.cyl[side].map((x, i) => live(x) ? i : -1).filter(i => i >= 0);
   let i = aimed ? bestChamber(b, side) : -1;
-  if (i < 0) i = mine[Math.floor(rng() * mine.length)];
+  if (i < 0) i = nextLive(b, side);
+  b.next[side] = (i + 1) % BONUS.chambers;
   b.cyl[side][i] = { ...b.cyl[side][i], locked: true };
   ev.fired = i; ev.bullet = b.cyl[side][i];
   if (ev.bullet.k === 'blank') ev.blank = true;
@@ -398,4 +406,4 @@ function playBonus(sc = 3, rng = Math.random) {
   return { bounty, b, ...result(b) };
 }
 
-if (typeof module !== 'undefined') module.exports = { spinBoard, rightmostTarget, SCATTER_CHANCE, SYMBOLS, PATTERNS, GROUP_MIN, CORRUPT_MIN, CORRUPTION, BLAST, isCorrupt, corruption, explode, spinResult, blastValue, REELS, ROWS, COIN, PREMIUM, LINES, VS, spinGrid, evaluate, countOf, payFor, BONUS, BOUNTY, BUY, bountyGrid, bountySpins, newBonus, loadNext, loadingDone, shoot, result, tally, playBonus, live };
+if (typeof module !== 'undefined') module.exports = { nextLive, spinBoard, rightmostTarget, SCATTER_CHANCE, SYMBOLS, PATTERNS, GROUP_MIN, CORRUPT_MIN, CORRUPTION, BLAST, isCorrupt, corruption, explode, spinResult, blastValue, REELS, ROWS, COIN, PREMIUM, LINES, VS, spinGrid, evaluate, countOf, payFor, BONUS, BOUNTY, BUY, bountyGrid, bountySpins, newBonus, loadNext, loadingDone, shoot, result, tally, playBonus, live };
