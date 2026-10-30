@@ -1085,87 +1085,752 @@ function updateMeters() {
   document.querySelectorAll('#bets button').forEach(b => { b.setAttribute('aria-pressed', String(+b.dataset.v === bet)); b.disabled = spinning; });
 }
 
-// ---------- Sound (all synthesized with Web Audio) ----------
-let actx = null, master = null, verb = null, noiseB = null;
-function impulse(sec, decay) {
-  const n = actx.sampleRate * sec, b = actx.createBuffer(2, n, actx.sampleRate);
-  for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, decay); }
-  return b;
+// ---------- Sound ----------
+// Every sound is synthesized by the sound kit below into sample buffers: plucked guitar strings, struck metal and
+// wood, brass, whistle, harmonica, gun blasts. Takes are rendered in a background worker when the browser allows
+// it (otherwise on the page, a little at a time). Each play picks one of a few takes, nudges its pitch and level,
+// and can be panned to its reel. Everything plays through a wooden-room reverb and a canyon echo.
+// ---------- Sound kit (pure DSP, no audio files) ----------
+// Every sound is synthesized sample by sample into a "take": plucked strings (Karplus-Strong), struck metal and
+// wood (decaying modes), brass, whistle and harmonica (additive voices), filtered noise for blasts and air.
+// The game renders a few takes of each sound with different seeds and plays a random one each time, with small
+// changes in pitch and level, so nothing repeats exactly. RECIPES[name].mix holds the mixing levels.
+// Music is in E: guitar notes come from E minor pentatonic, chords and horns from E major.
+function makeSoundKit() {
+  let SR = 48000, rand = Math.random;
+  const TAU = Math.PI * 2, { exp, sin, cos, tanh, pow, floor, round, min, max, abs } = Math;
+  const seeded = s => () => { s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const r = (a = 0, b = 1) => a + rand() * (b - a);
+  const nse = () => rand() * 2 - 1;
+  const hz = m => 440 * pow(2, (m - 69) / 12);
+  const clamp = (v, a = 0, b = 1) => v < a ? a : v > b ? b : v;
+  const env = (t, a, tau) => t < a ? t / a : exp(-(t - a) / tau);       // linear attack, exponential decay
+  const ease = u => u * u * (3 - 2 * u);
+  const panG = p => [cos((clamp(p, -1, 1) + 1) * Math.PI / 4), sin((clamp(p, -1, 1) + 1) * Math.PI / 4)];
+
+  // Biquad filter (RBJ cookbook). set() can be called while running to sweep it.
+  class BQ {
+    constructor(type, f, q = 0.707, db = 0) { this.t = type; this.q = q; this.db = db; this.x1 = this.x2 = this.y1 = this.y2 = 0; this.set(f); }
+    set(f) {
+      const w = TAU * clamp(f, 10, SR * 0.45) / SR, c = cos(w), s = sin(w), a = s / (2 * this.q);
+      let b0, b1, b2, a0, a1, a2;
+      if (this.t === 'lp') { b0 = (1 - c) / 2; b1 = 1 - c; b2 = b0; }
+      else if (this.t === 'hp') { b0 = (1 + c) / 2; b1 = -(1 + c); b2 = b0; }
+      else if (this.t === 'bp') { b0 = a; b1 = 0; b2 = -a; }
+      if (this.t === 'pk') { const A = pow(10, this.db / 40); b0 = 1 + a * A; b1 = -2 * c; b2 = 1 - a * A; a0 = 1 + a / A; a1 = -2 * c; a2 = 1 - a / A; }
+      else { a0 = 1 + a; a1 = -2 * c; a2 = 1 - a; }
+      this.b0 = b0 / a0; this.b1 = b1 / a0; this.b2 = b2 / a0; this.a1 = a1 / a0; this.a2 = a2 / a0;
+    }
+    run(x) { const y = this.b0 * x + this.b1 * this.x1 + this.b2 * this.x2 - this.a1 * this.y1 - this.a2 * this.y2; this.x2 = this.x1; this.x1 = x; this.y2 = this.y1; this.y1 = y; return y; }
+  }
+  // Smooth random wobble in -1..1 that changes `rate` times a second (for vibrato, flutter, turbulence).
+  function smooth(rate) { let a = nse(), b = nse(), ph = 0; const step = rate / SR; return () => { ph += step; if (ph >= 1) { ph -= 1; a = b; b = nse(); } return a + (b - a) * ease(ph); }; }
+  // Band-limited sawtooth step (polyBLEP)
+  const blep = (t, dt) => { if (t < dt) { t /= dt; return t + t - t * t - 1; } if (t > 1 - dt) { t = (t - 1) / dt; return t * t + t + t + 1; } return 0; };
+
+  // ----- takes and mixing -----
+  function take(sec, stereo = false) { const n = Math.ceil(sec * SR); return { n, L: new Float32Array(n), R: stereo ? new Float32Array(n) : null }; }
+  // Add a mono signal fn(t, i) for `dur` seconds from `at`. pan is a number or a function of t.
+  // The last 3 ms always fade out, so a layer that is cut off never clicks.
+  function add(T, at, dur, fn, pan = 0, gain = 1) {
+    const i0 = max(0, round(at * SR)), n = min(T.n - i0, round(dur * SR)), F = max(1, min(n, round(0.003 * SR))), fs = n - F;
+    const fade = i => i < fs ? 1 : (n - i) / F;
+    if (!T.R) { for (let i = 0; i < n; i++) T.L[i0 + i] += fn(i / SR, i) * gain * fade(i); return; }
+    const pf = typeof pan === 'function'; let [gl, gr] = panG(pf ? pan(0) : pan);
+    for (let i = 0; i < n; i++) {
+      if (pf && !(i & 31)) [gl, gr] = panG(pan(i / SR));
+      const v = fn(i / SR, i) * gain * fade(i); T.L[i0 + i] += v * gl; T.R[i0 + i] += v * gr;
+    }
+  }
+  function mix(T, at, sig, pan = 0, gain = 1) { add(T, at, sig.length / SR, (t, i) => sig[i], pan, gain); }
+  // Struck modes: [freq, amp, decay seconds]. Each mode is an exactly decaying sine (complex rotation).
+  function modes(T, at, list, pan = 0, spread = 0) {
+    const i0 = round(at * SR);
+    for (const [f, a, tau] of list) {
+      if (f <= 20 || f >= SR * 0.46 || a <= 0) continue;
+      const w = TAU * f / SR, d = exp(-1 / (tau * SR)), cr = cos(w) * d, ci = sin(w) * d;
+      const n = min(T.n - i0, Math.ceil(tau * SR * 7));
+      let re = a, im = 0;
+      if (!T.R) { for (let i = 0; i < n; i++) { const x = re * cr - im * ci; im = re * ci + im * cr; re = x; T.L[i0 + i] += im; } continue; }
+      const [gl, gr] = panG(pan + (spread ? r(-spread, spread) : 0));
+      for (let i = 0; i < n; i++) { const x = re * cr - im * ci; im = re * ci + im * cr; re = x; T.L[i0 + i] += im * gl; T.R[i0 + i] += im * gr; }
+    }
+  }
+  // A short burst of filtered noise: a click, a crack, a scrape
+  function burst(T, at, dur, type, f, q, tau, amp, pan = 0, attack = 0) {
+    const bq = new BQ(type, f, q);
+    add(T, at, dur, t => bq.run(nse()) * env(t, attack, tau) * amp, pan);
+  }
+  // A bubble: a sine that chirps upward as it decays (how real bubbles sound)
+  function bubble(T, at, f0, tau, amp, rise = 8, pan = 0) {
+    let ph = 0; add(T, at, tau * 7, t => { ph += TAU * f0 * (1 + rise * t) / SR; return sin(ph) * env(t, 0.0015, tau) * amp; }, pan);
+  }
+  // FM tone: alien rings and bells. glide bends the carrier exponentially (per second).
+  function fm(T, at, fc, ratio, index, tau, amp, o = {}) {
+    let pc = 0, pm = 0; const g = o.glide || 0;
+    add(T, at, o.dur || tau * 6, t => { const e = env(t, o.a || 0.002, tau), f = fc * exp(g * t); pm += TAU * f * ratio / SR; pc += TAU * f / SR; return sin(pc + index * e * sin(pm)) * e * amp; }, o.pan || 0);
+  }
+  // Rolling saturation for grit. Normalizes first so the drive acts the same on every take.
+  function soft(T, k) {
+    const pk = peak(T) || 1, n = tanh(k);
+    for (const ch of [T.L, T.R]) if (ch) for (let i = 0; i < ch.length; i++) ch[i] = tanh(k * ch[i] / pk) / n;
+  }
+  const peak = T => { let p = 0; for (const ch of [T.L, T.R]) if (ch) for (let i = 0; i < ch.length; i++) { const a = abs(ch[i]); if (a > p) p = a; } return p; };
+  // Make a take loop seamlessly: the last `fade` seconds are cross-faded into the start, then cut.
+  function loopify(T, fade) {
+    const F = round(fade * SR), L = T.n - F;
+    for (const ch of [T.L, T.R]) if (ch) for (let i = 0; i < F; i++) { const u = i / F; ch[i] = ch[i] * u + ch[L + i] * (1 - u); }
+    T.n = L; T.L = T.L.slice(0, L); if (T.R) T.R = T.R.slice(0, L);
+  }
+
+  // ----- signal helpers on plain arrays -----
+  // Plucked string: Karplus-Strong with a pick-position comb, a fractional delay (for slides and bends)
+  // and an optional pickup-position comb for electric twang.
+  function string(o) {
+    const f0 = o.f, n = round((o.dur || 1.5) * SR), out = new Float32Array(n);
+    const size = Math.ceil(SR / (f0 * (o.minRatio || 0.9))) + 4, line = new Float32Array(size);
+    const g = pow(0.001, 1 / (f0 * (o.decay || 1.2)));             // reaches -60 dB after `decay` seconds
+    const P = SR / f0, exLen = max(4, round(P)), ex = new Float32Array(exLen);
+    let s = 0; const k = 0.06 + 0.9 * (o.bright ?? 0.6);
+    for (let i = 0; i < exLen; i++) { s += k * (nse() - s); ex[i] = s; }
+    const pp = max(1, round(exLen * (o.pos ?? 0.15)));
+    for (let i = exLen - 1; i >= pp; i--) ex[i] -= ex[i - pp];
+    let m = 0; for (let i = 0; i < exLen; i++) m += ex[i]; m /= exLen; for (let i = 0; i < exLen; i++) ex[i] -= m;
+    const S = o.S ?? 0.45, pk = o.pickup ? max(1, round(P * o.pickup)) : 0, muteAt = o.mute ? o.mute * SR : 1e12;
+    let w = 0, D = SR / f0 - S;
+    for (let i = 0; i < n; i++) {
+      if (o.bend && !(i & 7)) D = SR / (f0 * o.bend(i / SR)) - S;
+      let rp = w - D; if (rp < 0) rp += size;
+      const j = rp | 0, fr = rp - j, a0 = line[j], a1 = line[j + 1 < size ? j + 1 : 0], am = line[j > 0 ? j - 1 : size - 1];
+      const y0 = a0 + (a1 - a0) * fr, y1 = am + (a0 - am) * fr;
+      const v = (i < exLen ? ex[i] : 0) + (i > muteAt ? g * 0.985 : g) * ((1 - S) * y0 + S * y1);
+      line[w] = v;
+      out[i] = pk ? v - line[w >= pk ? w - pk : w - pk + size] : v;
+      w = w + 1 < size ? w + 1 : 0;
+    }
+    return norm(out, o.amp ?? 0.5);
+  }
+  function norm(a, to = 1) { let p = 0; for (let i = 0; i < a.length; i++) p = max(p, abs(a[i])); if (p > 0) { const k = to / p; for (let i = 0; i < a.length; i++) a[i] *= k; } return a; }
+  // Wooden guitar body: a few resonances added to the string
+  function body(a, res) { const fs = res.map(([f, q, g]) => [new BQ('bp', f, q), g]); for (let i = 0; i < a.length; i++) { let y = a[i]; for (const [b, g] of fs) y += b.run(a[i]) * g; a[i] = y; } return a; }
+  function drive(a, k) { const n = tanh(k); for (let i = 0; i < a.length; i++) a[i] = tanh(k * a[i]) / n; return a; }
+  function tremolo(a, rate, depth) { for (let i = 0; i < a.length; i++) a[i] *= 1 - depth * (0.5 + 0.5 * sin(TAU * rate * i / SR)); return a; }
+  // Slapback echo, darker on each repeat
+  function slap(a, sec, fb, lp = 2500) { const d = round(sec * SR), f = new BQ('lp', lp, 0.7); for (let i = d; i < a.length; i++) a[i] += f.run(a[i - d]) * fb; return a; }
+  // Strum: strings started one after another, summed onto one array
+  function strum(notes, o) {
+    const out = new Float32Array(round((o.dur || 1.5) * SR));
+    notes.forEach((m, k) => {
+      const s = string({ f: hz(m), dur: (o.dur || 1.5) - k * o.gap, decay: (o.decay || 1.4) * (1 - k * 0.06), bright: o.bright ?? 0.75, pos: r(0.12, 0.22), S: o.S ?? 0.4, amp: (o.amp ?? 0.5) * (o.accent ? (k === notes.length - 1 ? 1 : 0.8) : 1) * r(0.85, 1.05), pickup: o.pickup });
+      const i0 = round((k * o.gap + r(0, o.gap * 0.3)) * SR);
+      for (let i = 0; i < s.length && i0 + i < out.length; i++) out[i0 + i] += s[i];
+    });
+    return out;
+  }
+  const guitarBody = [[105, 2.5, 0.9], [215, 3, 0.55], [410, 2, 0.3], [2800, 1.2, 0.15]];
+
+  // Brass voice: a band-limited sawtooth through a lowpass that opens with the breath (brass gets brighter as it gets
+  // louder), a lip "blat" at the start, a scoop up into the pitch, a horn formant and delayed vibrato on long notes.
+  function horn(T, at, f, dur, o = {}) {
+    const n = round((dur + 0.45) * SR), i0 = round(at * SR), [gl, gr] = panG(o.pan || 0), amp = o.amp ?? 0.3;
+    const lp = new BQ('lp', 2000, 0.9), lp2 = new BQ('lp', 2000, 0.6), form = new BQ('pk', 1300, 1.1, 8), breath = new BQ('bp', 1400, 1.5), wob = smooth(5);
+    const vibRate = r(5.2, 6.0), attack = o.attack ?? 0.03;
+    let vph = r(0, TAU), ph = r(0, 1);
+    for (let i = 0; i < n && i0 + i < T.n; i++) {
+      const t = i / SR;
+      const e = t < attack ? pow(t / attack, 1.5) : t < dur ? 1 - 0.18 * min(1, (t - attack) / 0.25) + 0.12 * min(1, max(0, t - 0.4) / 0.5) : 0.94 * exp(-(t - dur) / 0.07);
+      if (!(i & 15)) { const bright = clamp(0.2 + 0.65 * e + 0.45 * exp(-t / 0.045), 0, 1.15), fc = f * (1.3 + 9 * bright * bright); lp.set(fc); lp2.set(fc * 1.25); }
+      vph += TAU * vibRate / SR;
+      const vib = (o.vib ?? 0.006) * clamp((t - 0.22) / 0.25) * sin(vph);
+      const dt = f * (1 - 0.035 * exp(-t / 0.025) + vib + 0.0025 * wob()) / SR;
+      ph += dt; if (ph >= 1) ph -= 1;
+      const saw = 2 * ph - 1 - blep(ph, dt);
+      const y = (tanh(1.6 * form.run(lp2.run(lp.run(saw)))) + breath.run(nse()) * 0.05) * e * amp;
+      if (T.R) { T.L[i0 + i] += y * gl; T.R[i0 + i] += y * gr; } else T.L[i0 + i] += y;
+    }
+  }
+  // Timpani: a drum head with a small pitch drop as the stroke settles
+  function timpani(T, at, f, amp, pan = 0) {
+    modes(T, at, [[f, amp, 0.9], [f * 1.5, amp * 0.55, 0.6], [f * 1.98, amp * 0.38, 0.45], [f * 2.44, amp * 0.22, 0.32], [f * 2.9, amp * 0.12, 0.22]], pan);
+    let ph = 0; add(T, at, 0.12, t => { ph += TAU * f * (1 + 0.06 * exp(-t / 0.02)) / SR; return sin(ph) * env(t, 0.003, 0.03) * amp * 0.6; }, pan);
+    burst(T, at, 0.05, 'lp', 900, 0.7, 0.012, amp * 0.6, pan);
+  }
+  // Iron bolt sliding home
+  function latch(T, at) {
+    const sl = new BQ('bp', r(2000, 2600), 2); add(T, at, 0.03, t => sl.run(nse()) * (t / 0.03) * 0.25);
+    const f = r(420, 520);
+    modes(T, at + 0.03, [[r(120, 150), 0.5, 0.03], [f, 0.4, 0.05], [f * 2.14, 0.3, 0.035], [f * 3.3, 0.2, 0.02], [f * 5.1, 0.1, 0.012]]);
+    burst(T, at + 0.03, 0.008, 'hp', 2500, 0.7, 0.001, 0.7);
+  }
+  const COIN_MODES = [[1, 0.5, 0.32], [1.594, 0.35, 0.2], [2.136, 0.28, 0.14], [2.296, 0.22, 0.12], [2.653, 0.16, 0.09], [2.918, 0.12, 0.07], [3.6, 0.08, 0.05]];
+  function coinStrike(T, at, f, a, pan = 0) {
+    modes(T, at, COIN_MODES.map(([k, g, d]) => [f * k * r(0.996, 1.004), g * a * r(0.7, 1.2), d]), pan, 0.15);
+    burst(T, at, 0.004, 'hp', 5000, 0.7, 0.0006, a * 0.6, pan);
+  }
+
+  // ----- recipes -----
+  // mix: vol (gain at play), wet (reverb send), echo (canyon echo send), det (random pitch spread), takes.
+  const RECIPES = {
+    // small mechanical tick: cylinder, ratchet, buttons
+    click: { mix: { vol: 0.54, wet: 0.06, det: 0.06, takes: 6 }, make() {
+      const T = take(0.06), f = r(2500, 3300);
+      modes(T, 0, [[f, 0.5, 0.004], [f * r(1.45, 1.6), 0.35, 0.003], [f * r(2.2, 2.5), 0.25, 0.0022], [r(700, 900), 0.22, 0.006]]);
+      burst(T, 0, 0.004, 'hp', 4000, 0.7, 0.0007, 0.8);
+      return T;
+    } },
+    // a reel landing: wooden drum knocks on the stop, the latch drops, a tiny rattle
+    reelstop: { mix: { vol: 0.95, wet: 0.08, det: 0.03, takes: 5 }, make() {
+      const T = take(0.32), f = r(88, 104);
+      let ph = 0; add(T, 0, 0.26, t => { ph += TAU * f * (1 + 0.6 * exp(-t / 0.012)) / SR; return sin(ph) * env(t, 0.0015, 0.05) * 0.9; });
+      modes(T, 0, [[f * 2.3, 0.35, 0.03], [f * 4.1, 0.22, 0.02], [f * 6.8, 0.12, 0.012], [r(1150, 1350), 0.08, 0.01]]);
+      burst(T, 0, 0.03, 'bp', 1800, 0.8, 0.006, 0.6);
+      const lt = r(0.012, 0.02), lf = r(2300, 2900);
+      modes(T, lt, [[lf, 0.22, 0.006], [lf * 1.53, 0.16, 0.004], [lf * 2.37, 0.1, 0.003]]);
+      for (let k = 0, t = lt + r(0.025, 0.04); k < 2; k++, t += r(0.02, 0.035)) modes(T, t, [[lf * r(0.9, 1.1), 0.05 / (k + 1), 0.004]]);
+      return T;
+    } },
+    // revolver shot: supersonic crack, muzzle blast, chest thump, frame slap, rumble. The echo comes from the canyon send.
+    shot: { mix: { vol: 1.2, wet: 0.22, echo: 0.5, det: 0.05, takes: 4 }, make() {
+      const T = take(0.9, true), d = r(0.85, 1.2);
+      for (const p of [-0.15, 0.15]) burst(T, 0, 0.012, 'hp', 1500, 0.6, 0.0011, 1, p);
+      for (const p of [-0.35, 0.35]) { const lp = new BQ('lp', 9000, 0.9); add(T, 0.0005, 0.35, (t, i) => { if (!(i & 15)) lp.set(600 + 8500 * exp(-t / (0.018 * d))); return lp.run(nse()) * env(t, 0.0008, 0.045 * d); }, p, 1.1); }
+      let ph = 0; const f0 = r(95, 120) / d; add(T, 0, 0.35, t => { ph += TAU * f0 * (1 + 1.4 * exp(-t / 0.01)) / SR; return tanh(2.2 * sin(ph) * env(t, 0.001, 0.07 * d)) * 0.9; });
+      burst(T, 0, 0.12, 'bp', r(900, 1400), 1.2, 0.018, 1.4);
+      for (const p of [-0.8, 0.8]) { const lp = new BQ('lp', 380, 0.7), wob = smooth(14); add(T, 0.01, 0.85, t => lp.run(nse()) * env(t, 0.03, 0.2) * (1.4 + 0.6 * wob()), p); }
+      modes(T, 0.001, [[r(2900, 3600), 0.06, 0.03], [r(5200, 6100), 0.04, 0.02]], 0, 0.3);
+      soft(T, 1.6);
+      return T;
+    } },
+    // cocking the hammer: spring scrape, sear click, the cylinder turning, then the full-cock clack
+    hammer: { mix: { vol: 0.73, wet: 0.1, det: 0.03, takes: 3 }, make() {
+      const T = take(0.3);
+      const scr = new BQ('bp', 3800, 2); add(T, 0, 0.06, t => scr.run(nse()) * env(t, 0.02, 0.015) * 0.35);
+      const f = r(2000, 2500); modes(T, 0.012, [[f, 0.35, 0.006], [f * 1.7, 0.25, 0.004], [f * 2.9, 0.15, 0.003]]);
+      for (let k = 0; k < 3; k++) modes(T, 0.035 + k * 0.014, [[r(3500, 4500), 0.08, 0.003]]);
+      const g = r(1500, 1800), lt = r(0.085, 0.1);
+      modes(T, lt, [[g, 0.6, 0.012], [g * 1.48, 0.45, 0.009], [g * 2.62, 0.3, 0.006], [g * 3.9, 0.18, 0.004], [r(480, 560), 0.3, 0.02]]);
+      burst(T, lt, 0.01, 'hp', 3000, 0.7, 0.0012, 1);
+      return T;
+    } },
+    // the classic whining ricochet, travelling across the stereo field
+    ricochet: { mix: { vol: 0.38, wet: 0.3, echo: 0.3, det: 0.06, takes: 4 }, make() {
+      const T = take(0.75, true), f0 = r(2800, 3800), f1 = r(650, 1050), dur = r(0.45, 0.62), dir = rand() < 0.5 ? -1 : 1, wob = r(16, 32), curve = r(0.5, 0.9);
+      modes(T, 0, [[r(3000, 4000), 0.3, 0.012], [r(5000, 6500), 0.2, 0.008]], -dir * 0.4);
+      burst(T, 0, 0.01, 'hp', 3000, 0.7, 0.001, 0.6, -dir * 0.4);
+      let ph = 0; const bp = new BQ('bp', f0, 6);
+      add(T, 0.006, dur, (t, i) => {
+        const u = t / dur, f = f0 * pow(f1 / f0, pow(u, curve)) * (1 + 0.012 * sin(TAU * wob * t));
+        ph += TAU * f / SR; if (!(i & 15)) bp.set(f);
+        const a = pow(sin(Math.PI * min(1, u * 1.15 + 0.02)), 0.5) * (1 - u);
+        return (sin(ph) * 0.7 + bp.run(nse()) * 1.6) * a;
+      }, t => dir * (-0.6 + 1.3 * t / dur));
+      return T;
+    } },
+    // bullet strikes a chamber: a steel clang and the bullet in it shatters into shards
+    impact: { mix: { vol: 0.73, wet: 0.25, det: 0.05, takes: 4 }, make() {
+      const T = take(0.7), f = r(1100, 1500);
+      modes(T, 0, [[f, 0.4, 0.09], [f * 1.63, 0.3, 0.07], [f * 2.41, 0.28, 0.05], [f * 3.37, 0.18, 0.035], [f * 4.6, 0.12, 0.02], [r(300, 380), 0.3, 0.03]]);
+      burst(T, 0, 0.03, 'hp', 2000, 0.7, 0.004, 1.2);
+      for (let k = 0; k < 26; k++) { const t = 0.005 + pow(rand(), 2.2) * 0.4, g = r(3200, 9000); modes(T, t, [[g, r(0.03, 0.09) * (1 - t * 1.5), r(0.008, 0.03)], [g * r(1.3, 1.7), 0.03, 0.01]]); }
+      burst(T, 0, 0.25, 'bp', 5000, 1, 0.05, 0.5, 0, 0.002);
+      return T;
+    } },
+    // a cartridge slides into its chamber and seats
+    chamber: { mix: { vol: 0.6, wet: 0.1, det: 0.04, takes: 4 }, make() {
+      const T = take(0.3), t0 = r(0.04, 0.055), f = r(560, 680);
+      const sl = new BQ('bp', r(2500, 3500), 1.5); add(T, 0, t0, t => sl.run(nse()) * (t / t0) * 0.4);
+      modes(T, t0, [[r(160, 190), 0.45, 0.025], [f, 0.4, 0.03], [f * 2.27, 0.3, 0.02], [f * 3.9, 0.2, 0.012], [r(4200, 5200), 0.12, 0.006], [r(3000, 3400), 0.05, 0.06]]);
+      burst(T, t0, 0.008, 'hp', 2500, 0.7, 0.001, 0.7);
+      return T;
+    } },
+    // one coin: a thin metal disc ringing, with a bounce or two. Rendered at A6, pitched at play.
+    coin: { mix: { vol: 0.21, wet: 0.2, det: 0.004, takes: 5 }, make() {
+      const T = take(0.6), f = 1760 * r(0.99, 1.01);
+      coinStrike(T, 0, f, 1);
+      const b = r(0.02, 0.045); coinStrike(T, b, f, r(0.25, 0.45)); if (rand() < 0.6) coinStrike(T, b + r(0.015, 0.03), f, r(0.1, 0.2));
+      return T;
+    } },
+    // a handful of coins poured onto a pile
+    jingle: { mix: { vol: 0.27, wet: 0.2, det: 0.04, takes: 2 }, make() {
+      const T = take(0.8);
+      for (let k = 0; k < 22; k++) { const t = pow(rand(), 1.4) * 0.5; coinStrike(T, t, r(1500, 4200), r(0.2, 0.6) * (1 - t)); }
+      burst(T, 0, 0.5, 'bp', 6000, 0.8, 0.12, 0.12, 0, 0.02);
+      return T;
+    } },
+    // air moving past: two noise bands that sweep up and travel across
+    whoosh: { mix: { vol: 0.3, wet: 0.15, det: 0.08, takes: 4 }, make() {
+      const T = take(0.6, true), dir = rand() < 0.5 ? -1 : 1, d = r(0.35, 0.5), fa = r(250, 400), fb = r(2200, 3600);
+      for (const side of [0, 1]) {
+        const bp = new BQ('bp', fa, 1.2), lp = new BQ('lp', 500, 0.7);
+        add(T, side * 0.007, d + 0.04, (t, i) => { const u = min(1, t / d); if (!(i & 15)) bp.set(fa * pow(fb / fa, sin(u * Math.PI / 2))); const x = nse(); return (bp.run(x) * 1.3 + lp.run(x) * 0.6) * pow(sin(Math.PI * u), 1.6); },
+          t => dir * (-0.75 + 1.5 * min(1, t / d)) * (side ? 0.85 : 1));
+      }
+      return T;
+    } },
+    // something heavy hits the dirt
+    thud: { mix: { vol: 1.35, sr: 0.5, wet: 0.12, det: 0.06, takes: 4 }, make() {
+      const T = take(0.45), f = r(55, 72);
+      let ph = 0; add(T, 0, 0.4, t => { ph += TAU * f * (1 + 0.9 * exp(-t / 0.02)) / SR; return sin(ph) * env(t, 0.002, 0.09); });
+      burst(T, 0, 0.2, 'lp', 700, 0.8, 0.035, 1.2, 0, 0.001);
+      for (let k = 0; k < 14; k++) { const t = r(0.01, 0.22); burst(T, t, 0.01, 'bp', r(1200, 3000), 2, 0.002, 0.25 * (1 - t * 3)); }
+      soft(T, 1.5);
+      return T;
+    } },
+    // lub-dub
+    heart: { mix: { vol: 1.75, sr: 0.5, wet: 0.05, det: 0.02, takes: 2 }, make() {
+      const T = take(0.5);
+      const beat = (at, f, a, tau) => { let ph = 0; add(T, at, 0.25, t => { ph += TAU * f * (1 + 0.5 * exp(-t / 0.015)) / SR; return sin(ph) * env(t, 0.008, tau) * a; }); burst(T, at, 0.12, 'lp', 160, 0.7, 0.03, a * 1.5, 0, 0.005); };
+      beat(0, r(46, 52), 1, 0.07); beat(0.17, r(56, 62), 0.7, 0.055);
+      soft(T, 2.4);
+      return T;
+    } },
+    // a win line: a shot further off, and the bullet whizzing past
+    tracer: { mix: { vol: 0.84, wet: 0.2, echo: 0.22, det: 0.06, takes: 6 }, make() {
+      const T = take(0.5);
+      burst(T, 0, 0.006, 'hp', 2500, 0.6, 0.0008, 0.9);
+      const lp = new BQ('lp', 6000, 0.8); add(T, 0, 0.2, (t, i) => { if (!(i & 15)) lp.set(500 + 5000 * exp(-t / 0.012)); return lp.run(nse()) * env(t, 0.0006, 0.03); });
+      let ph = 0; const f = r(130, 175); add(T, 0, 0.18, t => { ph += TAU * f * (1 + exp(-t / 0.008)) / SR; return tanh(1.8 * sin(ph) * env(t, 0.001, 0.04)) * 0.7; });
+      const w0 = r(0.02, 0.05), wd = r(0.18, 0.26), bp = new BQ('bp', 4000, 5), fs = r(3600, 4800); let q = 0;
+      add(T, w0, wd, (t, i) => { const u = t / wd, fr = fs * pow(0.35, u); if (!(i & 15)) bp.set(fr); q += TAU * fr * 0.5 / SR; return (bp.run(nse()) * 1.6 + sin(q) * 0.12) * pow(sin(Math.PI * u), 2) * 0.5; });
+      return T;
+    } },
+    // dry fire: the hammer falls on an empty chamber
+    dry: { mix: { vol: 0.93, wet: 0.15, det: 0.04, takes: 3 }, make() {
+      const T = take(0.25), f = r(1900, 2300);
+      modes(T, 0, [[f, 0.5, 0.008], [f * 1.41, 0.4, 0.006], [f * 2.73, 0.3, 0.004], [f * 4.1, 0.2, 0.003]]);
+      modes(T, 0, [[r(820, 980), 0.35, 0.03], [r(1640, 1900), 0.12, 0.02]]);
+      burst(T, 0, 0.006, 'hp', 3500, 0.7, 0.0009, 1);
+      return T;
+    } },
+    // a bullet hole punched into a wooden reel cell
+    splinter: { mix: { vol: 0.5, wet: 0.1, det: 0.08, takes: 6 }, make() {
+      const T = take(0.22), f = r(320, 440);
+      modes(T, 0, [[f, 0.5, 0.018], [f * 2.31, 0.3, 0.012], [f * 3.8, 0.2, 0.008], [f * 5.6, 0.1, 0.005]]);
+      burst(T, 0, 0.04, 'bp', r(1800, 2600), 1.1, 0.006, 1.3);
+      for (let k = 0; k < 7; k++) burst(T, r(0.004, 0.06), 0.006, 'bp', r(3000, 6500), 3, 0.0012, r(0.2, 0.5));
+      return T;
+    } },
+    // goo stirring next to a landing reel
+    stir: { mix: { vol: 0.25, sr: 0.5, wet: 0.3, det: 0.1, takes: 3 }, make() {
+      const T = take(0.42);
+      for (let k = 0; k < 3; k++) bubble(T, r(0, 0.18), r(170, 300), r(0.03, 0.06), 0.4, r(4, 9));
+      const lp = new BQ('lp', 480, 2.5), wob = smooth(14); add(T, 0, 0.36, t => lp.run(nse()) * env(t, 0.05, 0.1) * (0.7 + 0.3 * wob()) * 0.6);
+      return T;
+    } },
+    // DNA goo taking a cell: a wet blorp
+    goo: { mix: { vol: 0.54, sr: 0.5, wet: 0.25, det: 0.1, takes: 5 }, make() {
+      const T = take(0.36);
+      bubble(T, 0, r(260, 420), r(0.025, 0.04), 0.55, r(8, 14));
+      bubble(T, r(0.04, 0.08), r(500, 800), r(0.015, 0.025), 0.35, r(10, 18));
+      if (rand() < 0.6) bubble(T, r(0.09, 0.14), r(700, 1100), 0.012, 0.2, 14);
+      const bp = new BQ('bp', r(600, 900), 3), fl = r(28, 42); add(T, 0, 0.16, t => bp.run(nse()) * env(t, 0.005, 0.03) * (0.5 + 0.5 * sin(TAU * fl * t)) * 0.9);
+      let ph = 0; const f = r(110, 140); add(T, 0, 0.22, t => { ph += TAU * f * (1 - 0.35 * min(1, t / 0.1)) / SR; return sin(ph) * env(t, 0.004, 0.04) * 0.5; });
+      return T;
+    } },
+    // a Void bomb lands: something alive throbs, an alien ring, a fizzing fuse
+    voidland: { mix: { vol: 0.55, sr: 0.5, wet: 0.3, det: 0.04, takes: 3 }, make() {
+      const T = take(0.75), f = r(52, 62), pr = r(6, 8);
+      let ph = 0; add(T, 0, 0.62, t => { ph += TAU * f / SR; const pulse = pow(0.5 + 0.5 * cos(TAU * pr * t), 2); return (sin(ph) + 0.4 * sin(2.01 * ph) + 0.25 * sin(3.03 * ph)) * env(t, 0.01, 0.2) * pulse; });
+      fm(T, 0.005, r(600, 820), 1.414, 2.5, 0.22, 0.28);
+      for (let k = 0; k < 12; k++) { const t = r(0.03, 0.55); modes(T, t, [[r(4000, 8000), 0.07 * (1 - t), 0.0015]]); }
+      soft(T, 1.4);
+      return T;
+    } },
+    // the bomb charges: a rising alien whine, crackle getting denser, a sub swell
+    charge: { mix: { vol: 0.47, sr: 0.5, wet: 0.2, det: 0.03, takes: 2 }, make() {
+      const T = take(0.62), d = 0.55;
+      let pc = 0, pm = 0; add(T, 0, d, t => { const u = t / d, fc = 180 * pow(7, u * u); pc += TAU * fc / SR; pm += TAU * fc * 1.5 / SR; return sin(pc + (1 + 3 * u) * sin(pm)) * pow(u, 1.5) * (1 - pow(u, 12)) * 0.5; });
+      let ps = 0; add(T, 0, d, t => { ps += TAU * (38 + 30 * t / d) / SR; return sin(ps) * pow(t / d, 2) * (1 - pow(t / d, 12)) * 0.8; });
+      for (let k = 0; k < 44; k++) { const t = d * pow(rand(), 0.5); modes(T, t, [[r(2500, 7000), 0.05 + 0.2 * t / d, 0.002]]); }
+      return T;
+    } },
+    // the Void bomb goes off: crack, roaring blast, sub drop, debris, and an alien shimmer sliding down
+    boom: { mix: { vol: 1.2, wet: 0.32, echo: 0.3, det: 0.05, takes: 3 }, make() {
+      const T = take(1.7, true);
+      for (const p of [-0.2, 0.2]) burst(T, 0, 0.015, 'hp', 1200, 0.6, 0.0015, 1.2, p);
+      for (const p of [-0.6, 0.6]) { const lp = new BQ('lp', 6000, 0.8), turb = smooth(22); add(T, 0, 1.5, (t, i) => { if (!(i & 15)) lp.set(180 + 5000 * exp(-t / 0.08)); return lp.run(nse()) * env(t, 0.002, 0.28) * (1 + 0.6 * turb()); }, p, 1.3); }
+      let ph = 0; add(T, 0, 1.3, t => { ph += TAU * (28 + 70 * exp(-t / 0.05)) / SR; return tanh(2 * sin(ph) * env(t, 0.002, 0.35)); }, 0, 1.2);
+      for (let k = 0; k < 34; k++) { const t = 0.04 + pow(rand(), 1.6) * 1.1, a = 0.25 * (1 - t / 1.3); rand() < 0.5 ? modes(T, t, [[r(200, 700), a, 0.02], [r(900, 2000), a * 0.5, 0.01]], r(-0.8, 0.8)) : burst(T, t, 0.01, 'bp', r(2000, 6000), 2, 0.002, a, r(-0.8, 0.8)); }
+      fm(T, 0.02, r(500, 700), 1.37, 3, 0.4, 0.22, { glide: -0.7, pan: -0.55 }); fm(T, 0.03, r(700, 900), 1.61, 2.5, 0.35, 0.18, { glide: -0.6, pan: 0.55 });
+      soft(T, 1.8);
+      return T;
+    } },
+    // corruption spreads: an alien voice morphing its vowel, a sub swell, ring-mod sparkle and glitchy stutter
+    corrupt: { mix: { vol: 1.3, sr: 0.5, wet: 0.4, det: 0.03, takes: 3 }, make() {
+      const T = take(1.55, true), d = 1.4;
+      for (const [p, det] of [[-0.5, 0.995], [0.5, 1.006]]) {
+        const f1 = new BQ('bp', 400, 4), f2 = new BQ('bp', 1000, 6), wob = smooth(6); let ph = 0;
+        const base = r(82, 98) * det, rise = r(0.15, 0.3);
+        add(T, 0, d, (t, i) => {
+          const u = t / d, f0 = base * (1 + rise * u) * (1 + 0.025 * wob()), dt = f0 / SR; ph += dt; if (ph >= 1) ph -= 1;
+          const saw = 2 * ph - 1 - blep(ph, dt);
+          if (!(i & 31)) { f1.set(300 + 500 * sin(Math.PI * u)); f2.set(800 + 1900 * u * u); }
+          return (f1.run(saw) * 1.3 + f2.run(saw)) * env(t, 0.35, 0.45) * (1 - pow(u, 8));
+        }, p);
+      }
+      let ps = 0; add(T, 0, d, t => { ps += TAU * 44 / SR; return sin(ps) * env(t, 0.4, 0.5) * (1 - pow(t / d, 8)) * 0.7; });
+      let pa = 0, pb = 0; const fa = r(900, 1300), fb = r(1500, 2200);
+      add(T, 0.2, 1.1, t => { pa += TAU * fa * (1 - 0.3 * t) / SR; pb += TAU * fb / SR; return sin(pa) * sin(pb) * env(t, 0.3, 0.25) * 0.25; }, t => sin(TAU * 1.3 * t) * 0.7);
+      for (let k = 0; k < 6; k++) burst(T, k * 0.045 + r(0, 0.01), 0.02, 'bp', r(1000, 4000), 3, 0.006, 0.35, r(-0.7, 0.7));
+      return T;
+    } },
+    // duel target lands: a baritone guitar twang with a whammy dip, tremolo and slapback. p = 0..4 climbs
+    twang: { mix: { vol: 0.58, wet: 0.3, echo: 0.08, det: 0.002, takes: 1 }, param: 5, make(p) {
+      const T = take(1.5), f = hz([52, 55, 59, 62, 64][p]);
+      const s = string({ f, dur: 1.45, decay: 1.7, bright: 0.9, pos: 0.12, S: 0.28, pickup: 0.09, amp: 0.7, bend: t => 1 - 0.016 * sin(Math.PI * clamp((t - 0.1) / 0.6)) });
+      body(s, [[160, 1.5, 0.5], [1900, 1.5, 0.35]]); drive(s, 1.7); tremolo(s, 5.5, 0.22); slap(s, 0.11, 0.3);
+      mix(T, 0, s);
+      for (let k = 0; k < 3; k++) modes(T, 0.002 + k * 0.03, [[r(4200, 4800), 0.025, 0.12], [r(5600, 6300), 0.018, 0.1]]); // spur shimmer
+      return T;
+    } },
+    // line wins tally up: clean guitar plucks climbing E minor pentatonic, p = 0..7
+    pluck: { mix: { vol: 0.49, wet: 0.3, det: 0.002, takes: 1 }, param: 8, make(p) {
+      const T = take(1.2), f = hz([64, 67, 69, 71, 74, 76, 79, 81][p]);
+      const s = string({ f, dur: 1.15, decay: 0.9, bright: 0.7, pos: 0.2, S: 0.42, amp: 0.7 });
+      body(s, guitarBody); mix(T, 0, s);
+      modes(T, 0.002, [[f * 2, 0.05, 0.25], [f * 3, 0.025, 0.15]]);
+      return T;
+    } },
+    // big value lands: a driven strum on E, A or B major
+    power: { mix: { vol: 0.43, wet: 0.3, echo: 0.06, det: 0.002, takes: 3 }, make(p, v) {
+      const T = take(1.5), chords = [[40, 47, 52, 56, 59, 64], [45, 52, 57, 61, 64, 69], [47, 54, 59, 63, 66, 71]];
+      const s = strum(chords[v % 3], { dur: 1.45, gap: r(0.009, 0.013), decay: 1.3, bright: 0.85, S: 0.35, amp: 0.4, pickup: 0.1 });
+      body(s, [[120, 1.5, 0.5], [2200, 1.2, 0.3]]); drive(s, 2.2); tremolo(s, 6, 0.12);
+      mix(T, 0, norm(s, 0.8));
+      modes(T, 0.01, [[hz(88), 0.05, 0.4], [hz(95), 0.04, 0.3]]);
+      return T;
+    } },
+    // a win: a quick guitar run that slides up and lands on a strummed chord
+    lick: { mix: { vol: 0.49, wet: 0.3, echo: 0.12, det: 0.002, takes: 2 }, make() {
+      const T = take(1.7), out = new Float32Array(round(1.7 * SR)), g = r(0.068, 0.08);
+      const put = (at, s) => { const i0 = round(at * SR); for (let i = 0; i < s.length && i0 + i < out.length; i++) out[i0 + i] += s[i]; };
+      [64, 67, 69].forEach((m, k) => put(k * g, string({ f: hz(m), dur: 0.5, decay: 0.6, bright: 0.85, S: 0.38, amp: 0.45, pickup: 0.1, mute: g * 1.4 })));
+      put(3 * g, string({ f: hz(69), dur: 0.9, decay: 1, bright: 0.85, S: 0.36, amp: 0.5, pickup: 0.1, minRatio: 0.95, bend: t => pow(2, (2 * ease(clamp(t / 0.08))) / 12) }));
+      put(3 * g + 0.17, strum([52, 59, 64, 68, 71, 76], { dur: 1.2, gap: 0.011, decay: 1.2, bright: 0.85, S: 0.36, amp: 0.38, pickup: 0.1 }));
+      body(out, [[140, 1.5, 0.4], [2000, 1.3, 0.3]]); drive(out, 1.6); tremolo(out, 5.5, 0.12); slap(out, 0.12, 0.22);
+      mix(T, 0, norm(out, 0.9));
+      return T;
+    } },
+    // big win: two trumpets in harmony, timpani and a strummed chord to finish
+    fanfare: { mix: { vol: 0.82, sr: 0.5, wet: 0.35, echo: 0.14, det: 0.002, takes: 2 }, make(p, v) {
+      const T = take(2.5, true);
+      const lead = [[71, 0.12], [76, 0.12], [80, 0.12], [83, 0.36], [80, 0.12], [83, 0.8]], harm = [68, 71, 76, 80, 76, 80];
+      let t = 0.04;
+      lead.forEach(([m, d], k) => {
+        const hum = r(-0.008, 0.008);
+        horn(T, t + hum, hz(m), d * 0.94, { amp: 0.32, pan: -0.25, vib: d > 0.3 ? 0.007 : 0.002 });
+        horn(T, t + hum + r(0.006, 0.016), hz(harm[k]) * 1.002, d * 0.92, { amp: 0.24, pan: 0.3, vib: d > 0.3 ? 0.006 : 0.002 });
+        t += d;
+      });
+      timpani(T, 0.04, hz(40), 0.3, 0); timpani(T, 0.04 + 0.72, hz(35), 0.26, 0); timpani(T, 0.04 + 0.84, hz(40), 0.36, 0);
+      const s = strum([40, 47, 52, 56, 59, 64], { dur: 1.5, gap: 0.012, decay: 1.4, bright: 0.8, S: 0.38, amp: 0.3 });
+      body(s, guitarBody); mix(T, 0.04 + 0.84, norm(s, 0.35), 0.1);
+      return T;
+    } },
+    // the bonus whistle, out across the canyon
+    whistle: { mix: { vol: 0.27, sr: 0.5, wet: 0.45, echo: 0.35, det: 0.002, takes: 2 }, make() {
+      const notes = [[76, 0.16, 0], [81, 0.5, 1], [79, 0.16, 0], [76, 0.85, 1]], seg = [];
+      let t = 0.03; for (const [m, d, v] of notes) { seg.push({ t0: t, t1: t + d, f: hz(m) * r(0.998, 1.002), v }); t += d + 0.045; }
+      const total = t + 0.25, T = take(total + 0.1), bp = new BQ('bp', 1000, 9), hiss = new BQ('hp', 3500, 0.7), wob = smooth(4), vr = r(5.5, 6.3);
+      let ph = 0, k = 0;
+      add(T, 0, total, (tt, i) => {
+        while (k < seg.length - 1 && tt > (seg[k].t1 + seg[k + 1].t0) / 2) k++;
+        const s = seg[k], from = k > 0 ? seg[k - 1].f : s.f * 0.92, into = clamp((tt - s.t0 + 0.03) / 0.06), inNote = tt - s.t0;
+        let f = from + (s.f - from) * ease(into);
+        if (s.v) f *= 1 + 0.012 * clamp((inNote - 0.12) / 0.15) * sin(TAU * vr * inNote);
+        if (k === seg.length - 1) f *= 1 - 0.04 * clamp((tt - s.t1 + 0.05) / 0.25);
+        f *= 1 + 0.003 * wob();
+        ph += TAU * f / SR; if (!(i & 15)) bp.set(f);
+        // one continuous level: fade in, a short dip at each change of note, fade out
+        let a = clamp((tt - seg[0].t0 + 0.02) / 0.04) * clamp((seg[seg.length - 1].t1 + 0.2 - tt) / 0.25);
+        for (let b = 0; b < seg.length - 1; b++) a *= 0.25 + 0.75 * clamp(abs(tt - (seg[b].t1 + seg[b + 1].t0) / 2) / 0.035);
+        const x = nse();
+        return (sin(ph) * 0.8 + 0.035 * sin(2 * ph) + bp.run(x) * 0.9 + hiss.run(x) * 0.025) * a;
+      });
+      return T;
+    } },
+    // the duel is lost: a harmonica sighs down, hands cupped for the wah
+    harmonica: { mix: { vol: 0.44, sr: 0.5, wet: 0.35, echo: 0.1, det: 0.002, takes: 2 }, make() {
+      const notes = [[63, 0.3], [62, 0.3], [61, 0.3], [60, 1.15]], seg = [];
+      let t = 0.02; for (const [m, d] of notes) { seg.push({ t0: t, t1: t + d, f: hz(m) }); t += d; }
+      const total = t + 0.2, T = take(total + 0.1);
+      const wah = new BQ('lp', 800, 2.6), nasal = new BQ('pk', 1800, 1.4, 6), br = new BQ('bp', 1600, 1.2), wob = smooth(5);
+      let k = 0, ph = 0;
+      add(T, 0, total, (tt, i) => {
+        while (k < seg.length - 1 && tt > seg[k].t1) k++;
+        const s = seg[k], last = k === seg.length - 1, inN = tt - s.t0, trem = last ? clamp((inN - 0.2) / 0.2) * (0.5 + 0.5 * sin(TAU * 5.2 * inN)) : 0;
+        let f = s.f * pow(2, (-0.4 * exp(-inN / 0.05)) / 12);
+        if (last) f *= pow(2, (-0.8 * ease(clamp((inN - 0.45) / 0.5))) / 12) * (1 + 0.006 * trem);
+        const dt = f * (1 + 0.002 * wob()) / SR; ph += dt; if (ph >= 1) ph -= 1;
+        let q = ph + 0.32; if (q >= 1) q -= 1;
+        const reed = (2 * ph - 1 - blep(ph, dt)) - (2 * q - 1 - blep(q, dt));
+        if (!(i & 31)) wah.set(600 + 1800 * sin(Math.PI * clamp(inN / min(0.6, s.t1 - s.t0))) + 500 * trem);
+        // hands open and close on each note; the level dips (never drops out) between notes
+        let a = clamp((tt - seg[0].t0) / 0.03) * clamp((seg[seg.length - 1].t1 + 0.15 - tt) / 0.35) * (1 - 0.3 * trem);
+        for (let b = 0; b < seg.length - 1; b++) a *= 0.4 + 0.6 * clamp(abs(tt - seg[b].t1) / 0.025);
+        return (wah.run(nasal.run(reed * 0.3)) + br.run(nse()) * 0.05) * a;
+      });
+      soft(T, 1.3);
+      return T;
+    } },
+    // the High Noon bell: hum, prime, minor tierce, quint and nominal, each a slowly beating pair
+    bell: { mix: { vol: 1.4, sr: 0.5, wet: 0.4, echo: 0.2, det: 0.004, takes: 2 }, make() {
+      const T = take(4.2, true), f = hz(52) * r(0.995, 1.005);
+      const parts = [[0.5, 0.45, 3.6], [1, 0.55, 2.7], [1.19, 0.5, 2.1], [1.5, 0.22, 1.5], [2, 0.6, 1.7], [2.52, 0.3, 0.95], [2.66, 0.25, 0.85], [3.01, 0.22, 0.7], [4.07, 0.14, 0.45], [5.2, 0.08, 0.3], [6.4, 0.05, 0.2]];
+      for (const [k, a, tau] of parts) { const b = r(0.0015, 0.004); modes(T, 0, [[f * k * (1 - b), a, tau]], -0.45); modes(T, 0, [[f * k * (1 + b), a * r(0.7, 1), tau * r(0.85, 1.1)]], 0.45); }
+      burst(T, 0, 0.05, 'bp', 2500, 2, 0.01, 0.6);
+      modes(T, 0, [[r(3200, 3600), 0.08, 0.06], [r(4700, 5200), 0.06, 0.04]], 0, 0.3);
+      return T;
+    } },
+    // dead-eye / aim: a chuckwagon triangle "ting"
+    ping: { mix: { vol: 0.32, wet: 0.45, det: 0.01, takes: 3 }, make() {
+      const T = take(1.6), f = r(2050, 2200);
+      modes(T, 0, [[f, 0.4, 0.5], [f * 2.37, 0.3, 0.4], [f * 3.04, 0.25, 0.33], [f * 4.6, 0.15, 0.25], [f * 5.65, 0.1, 0.18], [f * 7.2, 0.08, 0.13], [f * 1.003, 0.2, 0.45]]);
+      burst(T, 0, 0.006, 'hp', 4000, 0.7, 0.0008, 0.6);
+      return T;
+    } },
+    // a bolt slides home, then two guitar notes
+    lock: { mix: { vol: 0.7, wet: 0.25, det: 0.004, takes: 3 }, make() {
+      const T = take(0.85); latch(T, 0);
+      [[71, 0.06], [76, 0.13]].forEach(([m, at]) => { const s = string({ f: hz(m), dur: 0.7, decay: 0.7, bright: 0.75, S: 0.4, amp: 0.4 }); body(s, guitarBody); mix(T, at, s); });
+      return T;
+    } },
+    lockbig: { mix: { vol: 0.88, wet: 0.3, echo: 0.06, det: 0.003, takes: 2 }, make() {
+      const T = take(1.35); latch(T, 0);
+      const s = strum([52, 59, 64, 68, 71, 76], { dur: 1.25, gap: 0.012, decay: 1.2, bright: 0.85, S: 0.37, amp: 0.36, pickup: 0.1 });
+      body(s, [[140, 1.5, 0.4], [2000, 1.3, 0.3]]); drive(s, 1.5); mix(T, 0.06, norm(s, 0.6));
+      modes(T, 0.2, [[hz(88), 0.07, 0.5], [hz(88) * 2, 0.02, 0.25]]);
+      return T;
+    } },
+    // a blank: the hammer falls, a puff of powder and smoke, no bullet
+    blank: { mix: { vol: 0.93, wet: 0.2, echo: 0.1, det: 0.05, takes: 3 }, make() {
+      const T = take(0.5), f = r(2000, 2400);
+      modes(T, 0, [[f, 0.3, 0.006], [f * 1.5, 0.2, 0.004]]);
+      const lp = new BQ('lp', 2000, 0.7); add(T, 0.004, 0.3, (t, i) => { if (!(i & 15)) lp.set(300 + 1700 * exp(-t / 0.03)); return lp.run(nse()) * env(t, 0.003, 0.06) * 1.3; });
+      let ph = 0; add(T, 0.004, 0.12, t => { ph += TAU * 110 * (1 + 0.5 * exp(-t / 0.01)) / SR; return sin(ph) * env(t, 0.002, 0.03) * 0.5; });
+      burst(T, 0.02, 0.42, 'bp', 5000, 0.8, 0.12, 0.15, 0, 0.03);
+      return T;
+    } },
+    // your bullets survived: two soft guitar harmonics
+    harmonics: { mix: { vol: 0.24, wet: 0.45, det: 0.002, takes: 2 }, make() {
+      const T = take(1.8);
+      [[76, 0], [83, 0.11]].forEach(([m, at]) => { const f = hz(m); modes(T, at, [[f, 0.4, 0.42], [f * 1.002, 0.15, 0.38], [f * 2, 0.05, 0.2], [f * 3, 0.025, 0.12]]); burst(T, at, 0.004, 'bp', 3000, 1, 0.0008, 0.15); });
+      return T;
+    } },
+    // the pot drops: a low string sliding down
+    slide: { mix: { vol: 0.41, sr: 0.5, wet: 0.2, det: 0.004, takes: 2 }, make() {
+      const T = take(0.9), d = r(0.3, 0.4);
+      const s = string({ f: hz(45), dur: 0.85, decay: 0.8, bright: 0.8, S: 0.35, amp: 0.7, pickup: 0.12, minRatio: 0.72, bend: t => pow(2, -5 * ease(clamp((t - 0.04) / d)) / 12) });
+      body(s, [[110, 2, 0.6]]); drive(s, 1.8); mix(T, 0, s);
+      const sq = new BQ('bp', 3000, 4); add(T, 0.04, d, (t, i) => { if (!(i & 15)) sq.set(3200 - 1200 * t / d); return sq.run(nse()) * sin(Math.PI * t / d) * 0.12; });
+      return T;
+    } },
+    // reels spinning: a soft ratchet of passing symbols over the low rumble of the drums. Loops seamlessly.
+    reels: { mix: { vol: 0.16, det: 0, takes: 1 }, make() {
+      const L = 1, F = 0.08, T = take(L + F, true);
+      for (let k = 0; k < 20; k++) { const f = r(1300, 1900), at = max(0, k / 20 * L + r(-0.004, 0.004)); modes(T, at, [[f, r(0.25, 0.35), 0.006], [f * 2.3, 0.12, 0.004], [r(380, 460), 0.15, 0.012]], r(-0.6, 0.6)); burst(T, at, 0.004, 'hp', 3000, 0.7, 0.0006, 0.12, r(-0.5, 0.5)); }
+      for (const p of [-0.5, 0.5]) { const bp = new BQ('bp', 160, 1.2), lp = new BQ('lp', 400, 0.7), wob = smooth(9); add(T, 0, L + F, () => lp.run(bp.run(nse())) * (0.8 + 0.2 * wob()) * 0.35, p); }
+      loopify(T, F);
+      return T;
+    } },
+    // the tease: tremolo strings on E minor, loopable; the game bends it upward as tension builds
+    strings: { mix: { vol: 0.38, sr: 0.5, det: 0, takes: 1 }, make() {
+      const L = 2, F = 0.15, T = take(L + F, true), n = round((L + F) * SR);
+      for (const [m, p] of [[40, -0.2], [47, 0.25], [52, -0.4], [55, 0.45], [59, 0]]) {
+        const sum = new Float32Array(n), lp = new BQ('lp', 1600, 0.8);
+        for (let v = 0; v < 3; v++) {
+          const f = hz(m) * (1 + (v - 1) * 0.004), rate = r(10.5, 13), tp = r(0, TAU), dr = r(0.2, 0.5), dp = r(0, TAU);
+          let ph = r(0, 1), dt = f / SR, amp = 1;
+          for (let i = 0; i < n; i++) {
+            if (!(i & 31)) { const t = i / SR, tr = 0.5 + 0.5 * sin(TAU * rate * t + tp); dt = f * (1 + 0.002 * sin(TAU * dr * t + dp)) / SR; amp = 0.45 + 0.55 * tr * tr; }
+            ph += dt; if (ph >= 1) ph -= 1;
+            sum[i] += (2 * ph - 1 - blep(ph, dt)) * amp;
+          }
+        }
+        for (let i = 0; i < n; i++) sum[i] = lp.run(sum[i]);
+        mix(T, 0, sum, p, m < 45 ? 0.5 : 0.3);
+      }
+      loopify(T, F);
+      return T;
+    } },
+  };
+
+  // Render take number v of a recipe (p picks the note for pitched families like pluck and twang).
+  function render(name, p = 0, v = 0, sr = 48000) {
+    const R = RECIPES[name]; SR = sr;
+    let h = 2166136261; for (const c of name + ':' + p + ':' + v) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+    rand = seeded(h);
+    const T = R.make(p, v);
+    // clean up: remove any DC and soften the last few ms
+    for (const ch of [T.L, T.R]) if (ch) {
+      let xm = 0; const c = 1 - exp(-TAU * 20 / SR);
+      for (let i = 0; i < ch.length; i++) { const x = ch[i]; xm += c * (x - xm); ch[i] = x - xm; }
+      if (name !== 'reels' && name !== 'strings') { const F = min(ch.length, round(0.006 * SR)); for (let i = 0; i < F; i++) ch[ch.length - 1 - i] *= i / F; }
+    }
+    const pk = peak(T); if (pk > 0) { const k = 0.9 / pk; for (const ch of [T.L, T.R]) if (ch) for (let i = 0; i < ch.length; i++) ch[i] *= k; }
+    rand = Math.random;
+    return T;
+  }
+  // Reverb impulse: a handful of early reflections off wood, then a diffuse tail that darkens as it dies.
+  function impulse(sec = 1.8, sr = 48000) {
+    SR = sr; rand = seeded(1234567);
+    const n = round(sec * SR), out = [new Float32Array(n), new Float32Array(n)];
+    for (const ch of out) {
+      for (let k = 0; k < 12; k++) { const t = r(0.006, 0.075), i = round(t * SR); ch[i] += nse() * 0.9 * (1 - t * 8); }
+      let s = 0;
+      for (let i = round(0.012 * SR); i < n; i++) { const t = i / SR, c = 1 - exp(-TAU * (9000 * exp(-t / (sec * 0.25)) + 900) / SR); s += c * (nse() - s); ch[i] += s * min(1, (t - 0.012) / 0.02) * exp(-t * 6.9 / sec) * 0.55; }
+    }
+    rand = Math.random;
+    return out;
+  }
+  const meta = name => RECIPES[name].mix;
+  return { RECIPES, render, impulse, meta, hz };
+}
+const SoundKit = makeSoundKit();
+if (typeof module !== 'undefined') module.exports = SoundKit;
+
+let actx = null, master = null, verb = null, echoIn = null, kitWorker = null, jobSeq = 0;
+const bank = {}, jobs = {}, takesAsked = {}, lastTake = {}, idleJobs = [];
+const kitRate = name => Math.min(48000, actx.sampleRate) * (SoundKit.meta(name).sr || 1);
+function toBuffer(T, sr) { const b = actx.createBuffer(T.R ? 2 : 1, T.L.length, sr); b.getChannelData(0).set(T.L); if (T.R) b.getChannelData(1).set(T.R); return b; }
+function startKitWorker() {
+  try {
+    const src = `const SoundKit = (${makeSoundKit.toString()})();\nonmessage = e => { const { id, name, p, v, sr } = e.data; const T = SoundKit.render(name, p, v, sr); postMessage({ id, L: T.L, R: T.R }, T.R ? [T.L.buffer, T.R.buffer] : [T.L.buffer]); };`;
+    kitWorker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+    kitWorker.onmessage = e => { const j = jobs[e.data.id]; delete jobs[e.data.id]; if (j) j.done(e.data); };
+    kitWorker.onerror = () => { kitWorker = null; for (const id in jobs) { const j = jobs[id]; delete jobs[id]; idleJobs.push(j); } drainIdle(); };
+  } catch (e) { kitWorker = null; }
+}
+// Without a worker, render one take at a time between frames
+function drainIdle() {
+  if (!idleJobs.length || drainIdle.busy) return; drainIdle.busy = true;
+  setTimeout(() => { drainIdle.busy = false; const j = idleJobs.shift(); if (j) j.done(SoundKit.render(j.name, j.p, j.v, kitRate(j.name))); drainIdle(); }, 60);
+}
+// Ask for one more take of a sound (rendered in the background)
+function askTake(name, p = 0) {
+  const key = name + ':' + p, v = takesAsked[key] || 0; if (v >= SoundKit.meta(name).takes) return;
+  takesAsked[key] = v + 1;
+  const j = { name, p, v, done: T => (bank[key] = bank[key] || []).push(toBuffer(T, kitRate(name))) };
+  if (kitWorker) { const id = ++jobSeq; jobs[id] = j; kitWorker.postMessage({ id, name, p, v, sr: kitRate(name) }); }
+  else { idleJobs.push(j); drainIdle(); }
+}
+function takeOf(name, p = 0) {
+  const key = name + ':' + p; let list = bank[key];
+  if (!list || !list.length) {   // not ready yet: render the first take right now so the sound isn't lost
+    const v = takesAsked[key] || 0; takesAsked[key] = v + 1;
+    list = bank[key] = [toBuffer(SoundKit.render(name, p, v, kitRate(name)), kitRate(name))];
+  }
+  askTake(name, p);
+  let i = Math.floor(Math.random() * list.length); if (list.length > 1 && i === lastTake[key]) i = (i + 1) % list.length;
+  lastTake[key] = i; return list[i];
+}
+// Render the first take of everything, most used first
+function prewarm() {
+  const first = ['reels', 'reelstop', 'click', 'tracer', 'splinter', 'coin', 'pluck', 'twang', 'whoosh', 'lock', 'lockbig', 'goo', 'voidland', 'power', 'lick', 'jingle'];
+  const names = [...first, ...Object.keys(SoundKit.RECIPES).filter(n => !first.includes(n))];
+  for (const n of names) for (let p = 0; p < (SoundKit.RECIPES[n].param || 1); p++) askTake(n, p);
 }
 function ac() {
   if (!actx) {
     try {
       actx = new (window.AudioContext || window.webkitAudioContext)();
+      const sr = actx.sampleRate;
       master = actx.createGain(); master.gain.value = soundOn ? 0.9 : 0;
-      const comp = actx.createDynamicsCompressor(); master.connect(comp); comp.connect(actx.destination);
-      verb = actx.createConvolver(); verb.buffer = impulse(2.2, 3);
+      const comp = actx.createDynamicsCompressor(); comp.threshold.value = -14; comp.knee.value = 10; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.2;
+      const lim = actx.createDynamicsCompressor(); lim.threshold.value = -2; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.001; lim.release.value = 0.1;
+      master.connect(comp); comp.connect(lim); lim.connect(actx.destination);
+      // room: a wooden saloon with a tail that darkens as it dies
+      verb = actx.createConvolver(); const ir = SoundKit.impulse(1.8, sr), ib = actx.createBuffer(2, ir[0].length, sr);
+      ib.getChannelData(0).set(ir[0]); ib.getChannelData(1).set(ir[1]); verb.buffer = ib;
       const vg = actx.createGain(); vg.gain.value = 0.5; verb.connect(vg); vg.connect(master);
-      noiseB = actx.createBuffer(1, actx.sampleRate * 2, actx.sampleRate);
-      const d = noiseB.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      // canyon: a ping-pong echo, darker on every bounce
+      echoIn = actx.createGain();
+      const hp = actx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 220;
+      const dl = actx.createDelay(1.5), dr = actx.createDelay(1.5); dl.delayTime.value = 0.34; dr.delayTime.value = 0.27;
+      const lpl = actx.createBiquadFilter(), lpr = actx.createBiquadFilter(); lpl.type = lpr.type = 'lowpass'; lpl.frequency.value = 2600; lpr.frequency.value = 2000;
+      const fb = actx.createGain(); fb.gain.value = 0.42;
+      const side = p => { if (!actx.createStereoPanner) return actx.createGain(); const n = actx.createStereoPanner(); n.pan.value = p; return n; };
+      const pl = side(-0.7), pr = side(0.7), ev = actx.createGain(); ev.gain.value = 0.25;
+      echoIn.connect(hp); hp.connect(dl); dl.connect(lpl); lpl.connect(pl); lpl.connect(dr); dr.connect(lpr); lpr.connect(pr); lpr.connect(fb); fb.connect(dl);
+      pl.connect(master); pr.connect(master); pl.connect(ev); pr.connect(ev); ev.connect(verb);
+      startKitWorker(); prewarm();
     } catch (e) { actx = null; }
   }
   if (actx && actx.state === 'suspended') actx.resume();
   return actx;
 }
-function route(node, wet) { node.connect(master); if (wet) { const w = actx.createGain(); w.gain.value = wet; node.connect(w); w.connect(verb); } }
-function env(gn, t, vol, attack, dur) { const g = gn.gain; g.setValueAtTime(0.0001, t); g.exponentialRampToValueAtTime(vol, t + attack); g.exponentialRampToValueAtTime(0.0001, t + dur); }
-function nz(o) {
-  if (!soundOn || !ac()) return; const t = actx.currentTime + (o.when || 0);
-  const s = actx.createBufferSource(); s.buffer = noiseB; s.loop = true;
-  const f = actx.createBiquadFilter(); f.type = o.type || 'lowpass'; f.Q.value = o.q ?? 0.7;
-  f.frequency.setValueAtTime(o.f0, t); if (o.f1) f.frequency.exponentialRampToValueAtTime(o.f1, t + o.dur);
-  const gn = actx.createGain(); env(gn, t, o.vol, o.attack ?? 0.002, o.dur);
-  s.connect(f); f.connect(gn); route(gn, o.wet); s.start(t, Math.random() * 1.5); s.stop(t + o.dur + 0.05);
+function route(node, wet, echo) {
+  node.connect(master);
+  if (wet) { const w = actx.createGain(); w.gain.value = wet; node.connect(w); w.connect(verb); }
+  if (echo) { const e = actx.createGain(); e.gain.value = echo; node.connect(e); e.connect(echoIn); }
 }
-function osc(o) {
-  if (!soundOn || !ac()) return; const t = actx.currentTime + (o.when || 0);
-  const v = actx.createOscillator(); v.type = o.type || 'sine';
-  v.frequency.setValueAtTime(o.f0, t); if (o.f1) v.frequency.exponentialRampToValueAtTime(o.f1, t + (o.glide ?? o.dur));
-  if (o.vib) { const l = actx.createOscillator(), lg = actx.createGain(); l.frequency.value = o.vib.rate; lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(o.vib.depth, t + (o.vib.delay || 0) + 0.05); l.connect(lg); lg.connect(v.frequency); l.start(t); l.stop(t + o.dur + 0.05); }
-  const gn = actx.createGain(); env(gn, t, o.vol, o.attack ?? 0.005, o.dur);
-  let last = v; if (o.lp) { const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = o.lp; v.connect(f); last = f; }
-  last.connect(gn); route(gn, o.wet); v.start(t); v.stop(t + o.dur + 0.05);
+// Play a take. o: when, vol, rate, pan, p (note for pitched sounds), det/wet/echo to override the kit's mix
+function play(name, o = {}) {
+  if (!soundOn || !ac()) return null;
+  const m = SoundKit.meta(name), t = actx.currentTime + (o.when || 0), s = actx.createBufferSource();
+  s.buffer = takeOf(name, o.p || 0);
+  const det = o.det ?? m.det ?? 0.02; s.playbackRate.value = (o.rate || 1) * (1 + (Math.random() * 2 - 1) * det);
+  const g = actx.createGain(); g.gain.value = (o.vol ?? 1) * m.vol * (0.92 + Math.random() * 0.16);
+  s.connect(g); let out = g;
+  if (o.pan && actx.createStereoPanner) { const pn = actx.createStereoPanner(); pn.pan.value = Math.max(-1, Math.min(1, o.pan)); g.connect(pn); out = pn; }
+  route(out, o.wet ?? m.wet, o.echo ?? m.echo);
+  s.start(t); return { src: s, gain: g, t };
 }
-function tone(freq, dur, when = 0, type = 'triangle', vol = 0.12) { osc({ type, f0: freq, dur, vol, when }); }
-const PENTA = [1047, 1175, 1319, 1568, 1760, 2093, 2349, 2637];
+const reelPan = r => r == null ? 0 : (r - 2) * 0.28;
+const COIN_RATE = [88, 91, 93, 95, 98, 100, 103, 105].map(m => SoundKit.hz(m) / 1760);   // E minor pentatonic, from E6
 const sfx = {
-  click: (when = 0, v = 0.25) => { nz({ type: 'highpass', f0: 3500, dur: 0.02, vol: v, when }); osc({ type: 'square', f0: 2100, dur: 0.012, vol: v * 0.12, when }); },
-  ratchet: (total = 0.76) => { let t = 0, gap = 0.035; while (t < total) { sfx.click(t, 0.16); t += gap; gap *= 1.13; } },
-  stop: () => { osc({ type: 'sine', f0: 150, f1: 60, dur: 0.12, vol: 0.45 }); nz({ f0: 1800, dur: 0.05, vol: 0.22 }); },
-  shot: () => { nz({ f0: 6000, f1: 300, dur: 0.5, vol: 0.9, wet: 0.6 }); nz({ type: 'highpass', f0: 2500, dur: 0.05, vol: 0.6 }); osc({ type: 'sine', f0: 160, f1: 40, dur: 0.22, vol: 0.8 }); },
-  hammer: () => { sfx.click(0, 0.28); sfx.click(0.09, 0.35); osc({ type: 'square', f0: 900, dur: 0.02, vol: 0.03, when: 0.09 }); },
-  ricochet: () => osc({ type: 'sine', f0: 2600, f1: 600, dur: 0.5, vol: 0.12, wet: 0.5, when: 0.05, vib: { rate: 30, depth: 60 } }),
-  glass: () => { nz({ type: 'highpass', f0: 4000, dur: 0.3, vol: 0.28, wet: 0.3 }); for (let i = 0; i < 5; i++) osc({ type: 'sine', f0: 2500 + Math.random() * 3500, dur: 0.12 + Math.random() * 0.2, vol: 0.04, when: Math.random() * 0.08 }); },
-  chunk: () => { osc({ type: 'sine', f0: 240, f1: 110, dur: 0.12, vol: 0.4 }); nz({ type: 'bandpass', f0: 1500, q: 2, dur: 0.06, vol: 0.35 }); },
-  coin: (when = 0, i) => { const f = PENTA[i ?? Math.floor(Math.random() * PENTA.length)]; osc({ type: 'sine', f0: f, dur: 0.6, vol: 0.07, when, wet: 0.3 }); osc({ type: 'sine', f0: f * 2.76, dur: 0.25, vol: 0.03, when }); },
-  coins: (n = 6, span = 0.5) => { for (let i = 0; i < n; i++) sfx.coin(Math.random() * span); },
-  whoosh: () => nz({ type: 'bandpass', f0: 300, f1: 3200, q: 1.5, dur: 0.4, vol: 0.35, attack: 0.15 }),
-  thud: (when = 0) => { osc({ type: 'sine', f0: 110, f1: 40, dur: 0.3, vol: 0.6, when }); nz({ f0: 400, dur: 0.15, vol: 0.2, when }); },
-  heartbeat: () => { sfx.thud(0); sfx.thud(0.2); },
-  tracer: () => { nz({ type: 'highpass', f0: 2800, dur: 0.06, vol: 0.3 }); osc({ type: 'sine', f0: 150, f1: 50, dur: 0.12, vol: 0.3 }); osc({ type: 'sine', f0: 3400, f1: 700, dur: 0.3, vol: 0.045, wet: 0.4, when: 0.02 }); },
-  dryClick: () => { sfx.click(0, 0.4); osc({ type: 'square', f0: 1800, f1: 900, dur: 0.03, vol: 0.05 }); nz({ type: 'bandpass', f0: 4200, q: 4, dur: 0.04, vol: 0.18 }); },
-  hit: () => { osc({ type: 'sine', f0: 340, f1: 90, dur: 0.07, vol: 0.16 }); nz({ type: 'bandpass', f0: 1500, q: 1.5, dur: 0.05, vol: 0.13 }); },
-  stir: () => osc({ type: 'sine', f0: 320, f1: 180, dur: 0.35, vol: 0.06, vib: { rate: 14, depth: 25 } }),
-  blub: () => { osc({ type: 'sine', f0: 380, f1: 900, dur: 0.18, vol: 0.08, wet: 0.4 }); osc({ type: 'sine', f0: 560, f1: 1300, dur: 0.14, vol: 0.05, when: 0.08, wet: 0.4 }); },
-  charge: () => { osc({ type: 'sawtooth', f0: 110, f1: 900, dur: 0.55, vol: 0.06, lp: 1800, vib: { rate: 22, depth: 30 } }); nz({ type: 'bandpass', f0: 400, f1: 3200, q: 3, dur: 0.55, vol: 0.1, attack: 0.45 }); },
-  boom: () => { osc({ type: 'sine', f0: 140, f1: 30, dur: 0.6, vol: 0.85 }); nz({ f0: 3200, f1: 120, dur: 0.7, vol: 0.7, wet: 0.5 }); osc({ type: 'triangle', f0: 1300, f1: 240, dur: 0.35, vol: 0.06, wet: 0.6, vib: { rate: 30, depth: 50 } }); },
-  corrupt: () => { osc({ type: 'sawtooth', f0: 55, f1: 130, dur: 1.1, vol: 0.12, lp: 700, vib: { rate: 8, depth: 10 } }); osc({ type: 'sine', f0: 640, f1: 160, dur: 0.8, vol: 0.06, vib: { rate: 12, depth: 40 }, wet: 0.5 }); nz({ type: 'bandpass', f0: 300, f1: 2400, q: 2, dur: 0.9, vol: 0.12, attack: 0.3 }); },
-  tendril: (when = 0) => osc({ type: 'triangle', f0: 260 + Math.random() * 120, f1: 900, dur: 0.16, vol: 0.05, when }),
-  scatter: i => { const f = [784, 988, 1319, 1568, 1976][Math.min(i, 4)]; osc({ type: 'triangle', f0: f, dur: 0.5, vol: 0.13, wet: 0.4 }); osc({ type: 'sine', f0: f * 2, dur: 0.4, vol: 0.05, wet: 0.4, when: 0.03 }); },
-  tease: dur => { osc({ type: 'sawtooth', f0: 110, f1: 330, dur, vol: 0.05, attack: Math.max(0.05, dur * 0.8), lp: 900, vib: { rate: 7, depth: 4 } }); for (let t = 0; t < dur; t += 0.5) sfx.thud(t); },
-  ping: () => osc({ type: 'sine', f0: 2900, dur: 0.5, vol: 0.08, wet: 0.6 }),
-  lock: big => { sfx.click(0, 0.35); osc({ type: 'sine', f0: 1319, dur: 0.25, vol: 0.06, when: 0.05, wet: 0.3 }); osc({ type: 'sine', f0: 1976, dur: 0.35, vol: 0.05, when: 0.1, wet: 0.3 }); if (big) { osc({ type: 'triangle', f0: 1568, dur: 0.5, vol: 0.08, when: 0.16, wet: 0.5 }); osc({ type: 'triangle', f0: 2093, dur: 0.7, vol: 0.07, when: 0.24, wet: 0.5 }); } },
-  blankShot: () => { nz({ f0: 1400, f1: 250, dur: 0.18, vol: 0.3 }); sfx.click(0, 0.3); },
-  safe: () => { osc({ type: 'sine', f0: 784, dur: 0.3, vol: 0.05, wet: 0.4 }); osc({ type: 'sine', f0: 1047, dur: 0.45, vol: 0.05, when: 0.1, wet: 0.4 }); },
-  potDown: () => osc({ type: 'triangle', f0: 260, f1: 110, dur: 0.35, vol: 0.13 }),
-  power: () => { [392, 494, 587, 784].forEach((f, i) => osc({ type: 'sawtooth', f0: f, dur: 0.5, vol: 0.035, when: i * 0.04, lp: 2200, wet: 0.4 })); },
-  win: () => { [784, 988, 1175, 1568].forEach((f, i) => osc({ type: 'triangle', f0: f, dur: 0.3, vol: 0.1, when: i * 0.08, wet: 0.3 })); sfx.coins(5, 0.4); },
-  fanfare: () => { const n = [[523, .12], [659, .12], [784, .12], [1047, .36], [784, .12], [1047, .7]]; let t = 0; for (const [f, d] of n) { osc({ type: 'square', f0: f, dur: d + 0.1, vol: 0.05, when: t, wet: 0.4, lp: 3000 }); osc({ type: 'triangle', f0: f / 2, dur: d + 0.1, vol: 0.09, when: t }); t += d; } },
-  whistle: () => { const n = [[659, .16, 0], [880, .5, 1], [784, .16, 0], [659, .8, 1]]; let t = 0; for (const [f, d, v] of n) { osc({ type: 'sine', f0: f * 0.94, f1: f, glide: 0.05, dur: d, vol: 0.11, when: t, wet: 0.7, attack: 0.03, vib: v ? { rate: 6, depth: 9, delay: 0.15 } : null }); t += d + 0.04; } },
-  sad: () => { const n = [[311, .3], [294, .3], [277, .3], [262, 1]]; let t = 0; for (const [f, d] of n) { osc({ type: 'sawtooth', f0: f, dur: d, vol: 0.06, when: t, lp: 1200, vib: d > .5 ? { rate: 5, depth: 6 } : null }); t += d; } },
-  bell: () => { [[196, 0.22, 2.4], [392, 0.1, 1.8], [541, 0.07, 1.4], [1058, 0.04, 0.9]].forEach(([f, v, d]) => osc({ type: 'sine', f0: f, dur: d, vol: v, wet: 0.8, attack: 0.004 })); nz({ type: 'bandpass', f0: 2200, q: 3, dur: 0.05, vol: 0.2 }); },
-  chime: i => { const f = PENTA[Math.min(i + 1, PENTA.length - 1)]; osc({ type: 'triangle', f0: f, dur: 0.35, vol: 0.1, wet: 0.4 }); osc({ type: 'sine', f0: f * 2, dur: 0.25, vol: 0.04, wet: 0.4, when: 0.02 }); },
-  reelSpin: dur => nz({ type: 'bandpass', f0: 500, q: 0.6, dur, vol: 0.06, attack: 0.08 }),
+  click: (when = 0, v = 0.25) => play('click', { when, vol: v / 0.3 }),
+  // the cylinder spinning down: clicks that slow and drop in pitch
+  ratchet: (total = 0.76) => { let t = 0, gap = 0.035, k = 0; while (t < total) { play('click', { when: t, vol: 0.5, rate: 1 - k * 0.012, pan: Math.sin(k * 1.7) * 0.15 }); t += gap; gap *= 1.13; k++; } },
+  stop: r => play('reelstop', { rate: r == null ? 1 : [0.94, 0.98, 1.02, 1.06, 1.1][r], pan: reelPan(r) }),
+  shot: () => play('shot'),
+  hammer: () => play('hammer'),
+  ricochet: () => play('ricochet'),
+  glass: () => play('impact'),
+  chunk: () => play('chamber'),
+  coin: (when = 0, i) => play('coin', { when, rate: i == null ? 0.75 + Math.random() * 0.8 : COIN_RATE[Math.max(0, Math.min(7, i))], pan: (Math.random() - 0.5) * 0.6 }),
+  coins: (n = 6, span = 0.5) => { for (let i = 0; i < n; i++) sfx.coin(Math.random() * span); if (n >= 6) play('jingle', { vol: Math.min(1, n / 9) }); },
+  whoosh: () => play('whoosh'),
+  thud: (when = 0) => play('thud', { when }),
+  heartbeat: () => play('heart'),
+  tracer: () => play('tracer', { pan: (Math.random() - 0.5) * 0.9 }),
+  dryClick: () => play('dry'),
+  hit: () => play('splinter', { pan: (Math.random() - 0.5) * 0.8 }),
+  stir: () => play('stir', { pan: (Math.random() - 0.5) * 0.5 }),
+  blub: r => play('goo', { pan: reelPan(r) }),
+  bombLand: r => play('voidland', { pan: reelPan(r) }),
+  charge: () => play('charge'),
+  boom: () => play('boom'),
+  corrupt: () => play('corrupt'),
+  tendril: (when = 0) => play('goo', { when, vol: 0.6, rate: 0.85 + Math.random() * 0.5, pan: (Math.random() - 0.5) * 0.8 }),
+  scatter: (i, r) => play('twang', { p: Math.max(0, Math.min(4, i | 0)), pan: reelPan(r) }),
+  // the tease: tremolo strings that swell and climb while the last reels spin, over a quickening heartbeat
+  tease: dur => {
+    dur = Math.max(0.3, dur); const h = play('strings'); if (!h) return;
+    const g = h.gain.gain, top = g.value, t = h.t, pr = h.src.playbackRate;
+    h.src.loop = true; g.setValueAtTime(0.0001, t); g.exponentialRampToValueAtTime(top, t + dur * 0.85); g.setValueAtTime(top, t + dur); g.exponentialRampToValueAtTime(0.0001, t + dur + 0.3);
+    pr.setValueAtTime(1, t); pr.exponentialRampToValueAtTime(1.26, t + dur); h.src.stop(t + dur + 0.35);
+    for (let at = 0, gap = 0.55; at < dur; at += gap, gap = Math.max(0.32, gap * 0.9)) play('heart', { when: at, vol: 0.55 + 0.45 * at / dur });
+  },
+  ping: () => play('ping'),
+  lock: big => play(big ? 'lockbig' : 'lock'),
+  blankShot: () => play('blank'),
+  safe: () => play('harmonics'),
+  potDown: () => play('slide'),
+  power: () => play('power'),
+  win: () => { play('lick'); sfx.coins(5, 0.5); },
+  fanfare: () => play('fanfare'),
+  whistle: () => play('whistle'),
+  sad: () => play('harmonica'),
+  bell: () => play('bell'),
+  chime: i => play('pluck', { p: Math.max(0, Math.min(7, (i | 0) + 1)) }),
+  // the reels whirring: a looped ratchet that slows and fades as the reels come to rest
+  reelSpin: dur => {
+    const h = play('reels'); if (!h) return;
+    const g = h.gain.gain, top = g.value, t = h.t, pr = h.src.playbackRate;
+    h.src.loop = true; g.setValueAtTime(0.0001, t); g.exponentialRampToValueAtTime(top, t + 0.06); g.setValueAtTime(top, t + Math.max(0.07, dur - 0.45)); g.exponentialRampToValueAtTime(0.0001, t + dur + 0.05);
+    pr.setValueAtTime(1.05, t); pr.linearRampToValueAtTime(0.8, t + dur); h.src.stop(t + dur + 0.1);
+  },
 };
 
 // ---------- FX: particles, shake, flashes ----------
@@ -1350,23 +2015,23 @@ async function animateReels(oldGrid, newGrid, opts = {}) {
     return anim.finished.then(() => {
       strip.innerHTML = col.map(cellHTML).join('');
       reels[r].classList.remove('tease', 'hot');
-      sfx.stop();
+      sfx.stop(r);
       if (!reduced) reels[r].animate([{ transform: 'translateY(-5px)' }, { transform: 'translateY(2px)' }, { transform: 'none' }], { duration: 220, easing: 'ease-out' });
       col.forEach((s, row) => {
         const v = cashSym(s);
         if (v) {
           const cell = strip.children[row]; cell.classList.add('land');
           const c = vcenter(cell), tint = kindColor({ k: 'cash', v });
-          sfx.scatter(Math.min(4, landed++)); FX.twinkle(c.x, c.y, v >= 20 ? 9 : 5, tint);
+          sfx.scatter(Math.min(4, landed++), r); FX.twinkle(c.x, c.y, v >= 20 ? 9 : 5, tint);
           if (v >= 20) { FX.sparks(c.x, c.y, 14, [tint, '#fff7c0', '#ffd76a']); sfx.power(); shake(v >= 500 ? 8 : v >= 100 ? 5 : 3, 300); if (v >= 100) flashScreen(v >= 500 ? '#bff4ff' : '#ffd76a', 0.25, 400); }
           return;
         }
         if (s === 'BOMB' && !bounty) {
-          const cell = strip.children[row], c = vcenter(cell); cell.classList.add('land'); sfx.blub(); FX.twinkle(c.x, c.y, 6, '#ff7ae6');
+          const cell = strip.children[row], c = vcenter(cell); cell.classList.add('land'); sfx.bombLand(r); FX.twinkle(c.x, c.y, 6, '#ff7ae6');
           return;
         }
         if (s !== 'S') return;
-        const cell = strip.children[row]; cell.classList.add('land-s'); sfx.scatter(landed++);
+        const cell = strip.children[row]; cell.classList.add('land-s'); sfx.scatter(landed++, r);
         const c = vcenter(cell); FX.twinkle(c.x, c.y, 7, '#ffe08a'); FX.sparks(c.x, c.y, 8, ['#ff8a6a', '#ffd76a']);
       });
       if (!bounty && !teased && prem && r === 2) { teased = true; for (let k = r + 1; k < 5; k++) reels[k].classList.add('tease'); sfx.tease((dur[4] - dur[r]) / 1000); }
